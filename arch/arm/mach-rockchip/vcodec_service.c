@@ -14,6 +14,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/clk.h>
 #include <linux/compat.h>
 #include <linux/delay.h>
@@ -2158,7 +2160,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 
 	of_property_read_string(np, "name", (const char**)&name);
 	of_property_read_u32(np, "dev_mode", (u32*)&data->mode);
-	dev_set_name(dev, name);
+	/*dev_set_name(dev, name);*/
 
 	if (pservice->reg_base == 0) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2262,7 +2264,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 		goto err;
 	}
 
-	data->cls = class_create(THIS_MODULE, dev_name(dev));
+	data->cls = class_create(THIS_MODULE, name);
 
 	if (IS_ERR(data->cls)) {
 		ret = PTR_ERR(data->cls);
@@ -2271,24 +2273,24 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	}
 
 	data->child_dev = device_create(data->cls, dev,
-		data->dev_t, NULL, dev_name(dev));
+		data->dev_t, NULL, name);
 
 	platform_set_drvdata(pdev, data);
 
 	INIT_LIST_HEAD(&data->lnk_service);
 	list_add_tail(&data->lnk_service, &pservice->subdev_list);
-	
+
 #ifdef CONFIG_DEBUG_FS
 	data->debugfs_dir =
-		vcodec_debugfs_create_device_dir((char*)dev_name(dev), parent);
+		vcodec_debugfs_create_device_dir((char*)name, parent);
 	if (data->debugfs_dir == NULL)
-		vpu_err("create debugfs dir %s failed\n", dev_name(dev));
+		vpu_err("create debugfs dir %s failed\n", name);
 
 	data->debugfs_file_regs =
 		debugfs_create_file("regs", 0664,
 				    data->debugfs_dir, data,
 				    &debug_vcodec_fops);
-#endif	
+#endif
 	return 0;
 err:
 	if (data->irq_enc > 0)
