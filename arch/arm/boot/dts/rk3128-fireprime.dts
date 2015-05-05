@@ -24,6 +24,9 @@
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
 	};
+test-power {
+        status = "okay";
+};
 };
 
 &fb {
