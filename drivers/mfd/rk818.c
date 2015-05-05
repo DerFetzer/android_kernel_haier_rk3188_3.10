@@ -44,7 +44,7 @@
 #endif
 #define PM_CONTROL
 
-struct rk818 *g_rk818;
+struct rk818 *g_rk818=NULL;
 
 static struct mfd_cell rk818s[] = {
 	{
@@ -192,6 +192,22 @@ static int rk818_ldo_is_enabled(struct regulator_dev *dev)
 	else
 		return 0; 		
 }
+
+void fireprime_rk818_hdmi_5v_en(int en)
+{
+       //enable hdmi 5 v
+       if ( g_rk818 == NULL ) {
+                printk("%s:g_rk818 null!\n", __func__);
+                return ;
+        }
+
+        printk("%s enable:%d\n",__func__, en);
+       if ( en == 1 )
+               rk818_set_bits(g_rk818, 0x52,0x1,0x1);
+       else
+               rk818_clear_bits(g_rk818, 0x52, 0x1);
+}
+
 static int rk818_ldo_enable(struct regulator_dev *dev)
 {
 	struct rk818 *rk818 = rdev_get_drvdata(dev);
@@ -1285,6 +1301,7 @@ static int  rk818_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 	/*********************************************/
 	
 	g_rk818 = rk818;
+	fireprime_rk818_hdmi_5v_en(1);
 	if (pdev->pm_off && !pm_power_off) {
 		pm_power_off = rk818_device_shutdown;
 	}
