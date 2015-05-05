@@ -14,6 +14,34 @@
                 default-brightness-level = <128>;
                 enable-gpios = <&gpio0 GPIO_D3 GPIO_ACTIVE_HIGH>;
         };
+        wireless-wlan {
+                compatible = "wlan-platdata";
+
+                /* wifi_chip_type - wifi chip define
+                * bcmwifi ==> like ap6xxx, rk90, ...x;
+                * rtkwifi ==> like rtl8188xx, rtl8723xx, ...;
+                * esp8089 ==> esp8089;
+                * other   ==> for other wifi;
+                */
+                wifi_chip_type = "bcmwifi";
+                sdio_vref = <3300>; //1800mv or 3300mv
+
+                //keep_wifi_power_on;
+                //power_ctrl_by_pmu;
+                power_pmu_regulator = "vccio";
+                power_pmu_enable_level = <1>; //1->HIGH, 0->LOW
+
+                //vref_ctrl_enable;
+                //vref_ctrl_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
+                //vref_pmu_regulator = "act_ldo3";
+                //vref_pmu_enable_level = <1>; //1->HIGH, 0->LOW
+
+                WIFI,poweren_gpio = <&gpio1 GPIO_B3 GPIO_ACTIVE_HIGH>;
+                WIFI,host_wake_irq = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
+                //WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
+
+                status = "okay";
+        };
 
 	usb_control {
 		compatible = "rockchip,rk3126-usb-control";
