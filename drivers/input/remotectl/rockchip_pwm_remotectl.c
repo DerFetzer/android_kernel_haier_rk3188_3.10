@@ -13,12 +13,20 @@
 #include <linux/slab.h>
 #include "rockchip_pwm_remotectl.h"
 
+#include <asm/gpio.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_gpio.h>
+#include <linux/of_platform.h>
+#include <linux/rk_fb.h>
+#include <linux/leds.h>
 
 
 /*sys/module/rk_pwm_remotectl/parameters,
 modify code_print to change the value*/
 
 static int rk_remote_print_code;
+static bool remote_suspend = false;
 module_param_named(code_print, rk_remote_print_code, int, 0644);
 #define DBG_CODE(args...) \
 	do { \
@@ -26,6 +34,20 @@ module_param_named(code_print, rk_remote_print_code, int, 0644);
 			pr_info(args); \
 		} \
 	} while (0)
+
+#define BLINK_DELAY 50
+DEFINE_LED_TRIGGER(ledtrig_ir_click);
+static unsigned long ir_blink_delay = BLINK_DELAY;
+
+bool get_state_remotectl()
+{
+        return remote_suspend;
+}
+
+void ledtrig_ir_activity(void)
+{
+    led_trigger_blink_oneshot(ledtrig_ir_click, &ir_blink_delay, &ir_blink_delay,1);
+}
 
 static int rk_remote_pwm_dbg_level;
 module_param_named(dbg_level, rk_remote_pwm_dbg_level, int, 0644);
@@ -218,6 +240,15 @@ static void rk_pwm_remotectl_do_something(unsigned long  data)
 	}
 	break;
 	case RMC_GETDATA: {
+            #ifdef CONFIG_FIREFLY_POWER_LED
+            mod_timer(&timer_led,jiffies + msecs_to_jiffies(50));
+            remotectl_led_ctrl(0);
+            #endif
+
+                if(!get_state_remotectl() && (ddata->keycode != KEY_POWER))
+                {
+                        ledtrig_ir_activity();
+                }
 		if ((RK_PWM_TIME_BIT1_MIN < ddata->period) &&
 		    (ddata->period < RK_PWM_TIME_BIT1_MAX))
 			ddata->scandata |= (0x01<<ddata->count);
@@ -425,6 +456,35 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 }
 
 
+static int remotectl_fb_event_notify(struct notifier_block *self, unsigned long action, void *data)
+{
+       struct fb_event *event = data;
+       int blank_mode = *((int *)event->data);
+
+        if (action == FB_EARLY_EVENT_BLANK) {
+                switch (blank_mode) {
+                        case FB_BLANK_UNBLANK:
+                                break;
+                        default:
+                             remote_suspend = true;
+                                break;
+                }
+        }
+        else if (action == FB_EVENT_BLANK) {
+                switch (blank_mode) {
+                        case FB_BLANK_UNBLANK:
+                             remote_suspend = false;
+                             led_trigger_event(ledtrig_ir_click,LED_FULL);
+                                break;
+                        default:
+                                break;
+                }
+        }
+        return NOTIFY_OK;
+}
+static struct notifier_block remotectl_fb_notifier = {
+         .notifier_call = remotectl_fb_event_notify,
+};
 
 static int rk_pwm_probe(struct platform_device *pdev)
 {
@@ -440,6 +500,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	int i, j;
 	int cpu_id;
 	int pwm_id;
+	int gpio,flag;
 
 	pr_err(".. rk pwm remotectl v1.1 init\n");
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -517,6 +578,24 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	ret = input_register_device(input);
 	if (ret)
 		pr_err("remotectl: register input device err, ret: %d\n", ret);
+
+#ifdef CONFIG_FIREFLY_POWER_LED
+        gpio = of_get_named_gpio_flags(node,"led-power", 0,&flag);
+        if (!gpio_is_valid(gpio)){
+                printk("invalid led-power: %d\n",gpio);
+                //goto fail2;
+        }
+    ret = gpio_request(gpio, "led_power");
+        if (ret != 0) {
+                gpio_free(gpio);
+                ret = -EIO;
+                //goto fail2;
+        }
+        led_gpio = gpio;
+        led_enable_value = (flag == OF_GPIO_ACTIVE_LOW)? 0:1;
+        gpio_direction_output(led_gpio, led_enable_value);
+        setup_timer(&timer_led, led_timer, (unsigned long)ddata);
+#endif
 	input_set_capability(input, EV_KEY, KEY_WAKEUP);
 	device_init_wakeup(&pdev->dev, 1);
 	enable_irq_wake(irq);
@@ -533,11 +612,18 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		return ret;
 	}
 	rk_pwm_remotectl_hw_init(ddata);
+	led_trigger_register_simple("ir-power-click", &ledtrig_ir_click);
 	return ret;
 }
 
 static int rk_pwm_remove(struct platform_device *pdev)
 {
+        struct rkxx_remotectl_drvdata *ddata = platform_get_drvdata(pdev);
+
+        led_trigger_unregister_simple(ledtrig_ir_click);
+#if defined(CONFIG_RK_IR_NO_DEEP_SLEEP)
+    wake_unlock(&ddata->remotectl_wake_lock);
+#endif
 	return 0;
 }
 

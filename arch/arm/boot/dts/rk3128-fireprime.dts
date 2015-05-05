@@ -43,6 +43,28 @@
                 status = "okay";
         };
 
+        firefly-led{
+             compatible = "firefly,led";
+             led-work = <&gpio1 GPIO_C7 GPIO_ACTIVE_LOW>;
+             led-power = <&gpio1 GPIO_C6 GPIO_ACTIVE_LOW>;
+             status = "okay";
+        };
+        leds {
+       compatible = "gpio-leds";
+       power {
+           label = "firefly:blue:power";
+           linux,default-trigger = "ir-power-click";
+           default-state = "on";
+           gpios = <&gpio1 GPIO_C7 GPIO_ACTIVE_LOW>;
+       };
+        user {
+           label = "firefly:yellow:user";
+           linux,default-trigger = "ir-user-click";
+           default-state = "off";
+           gpios = <&gpio1 GPIO_C6 GPIO_ACTIVE_LOW>;
+       	   };
+        };
+
 	usb_control {
 		compatible = "rockchip,rk3126-usb-control";
 
