@@ -130,6 +130,8 @@ static struct rk312x_codec_priv *rk312x_priv;
 #define RK312x_CODEC_WORK_NULL	0
 #define RK312x_CODEC_WORK_POWER_DOWN	1
 #define RK312x_CODEC_WORK_POWER_UP	2
+#define RK312x_CODEC_LINE_IN		3
+static int rockchip_line_in(int type);
 static struct workqueue_struct *rk312x_codec_workq;
 
 static void rk312x_codec_capture_work(struct work_struct *work);
@@ -1826,6 +1828,59 @@ static struct rk312x_reg_val_typ capture_power_down_list[] = {
 #define RK312x_CODEC_CAPTURE_POWER_DOWN_LIST_LEN ARRAY_SIZE(\
 				capture_power_down_list)
 
+static struct rk312x_reg_val_typ rk312x_codec_linein_bypass[] = {
+{0x18, 0x32}, 
+{0xa0, 0x40|0x08}, 
+{0xa0, 0x62|0x08}, 
+{0xa4, 0x88}, 
+{0xa4, 0xcc}, 
+{0xa4, 0xee}, 
+{0xa8, 0x44}, 
+{0xb0, 0x92}, 
+{0xb0, 0xdb}, 
+{0xac, 0x66}, /*bypass*/ 
+{0xa8, 0x55}, 
+{0xa8, 0x77}, 
+{0xa4, 0xff}, 
+{0xb0, 0xff}, 
+{0xa0, 0x73|0x08}, 
+{0xb4, OUT_VOLUME}, 
+{0xb8, OUT_VOLUME}, 
+
+{0x88, 0x80}, 
+{0x88, 0xc0}, 
+{0x88, 0xc7}, 
+{0x9c, 0x88}, 
+{0x8c, 0x04}, 
+{0x90, 0x66}, 
+{0x9c, 0xcc}, 
+{0x9c, 0xee}, 
+{0x8c, 0x07}, 
+{0x90, 0xbb},// line in 
+{0x94, 0x20 | CAP_VOL}, 
+{0x98, CAP_VOL}, 
+{0x88, 0xf7}, 
+{0x28, 0x3c},
+/* {0x124, 0x78}, /
+/ {0x164, 0x78}, */ 
+{0x10c, 0x20 | CAP_VOL}, 
+{0x14c, 0x20 | CAP_VOL},
+};
+#define RK312x_CODEC_LINEIN_BYPASS_LEN ARRAY_SIZE(rk312x_codec_linein_bypass)
+
+static int rockchip_line_in(int type)
+{
+        struct snd_soc_codec *codec = rk312x_priv->codec;
+        int i;
+	if(type == RK312x_CODEC_LINE_IN){
+		for (i = 0; i < RK312x_CODEC_LINEIN_BYPASS_LEN; i++){
+			snd_soc_write(codec,rk312x_codec_linein_bypass[i].reg,rk312x_codec_linein_bypass[i].value);
+		}
+	printk("%s enable\n",__FUNCTION__);
+	}
+}
+
+
 static int rk312x_codec_power_up(int type)
 {
 	struct snd_soc_codec *codec = rk312x_priv->codec;
@@ -2179,6 +2234,18 @@ static ssize_t gpio_store(struct kobject *kobj, struct kobj_attribute *attr,
 		gpio_set_value(rk312x->hp_ctl_gpio, rk312x->hp_active_level);
 		DBG("%s : enable hp gpio \n",__func__);
 	}
+		break;
+	case 'l':
+		rockchip_line_in(RK312x_CODEC_LINE_IN);
+                if (rk312x->spk_ctl_gpio != INVALID_GPIO) {
+                        gpio_set_value(rk312x->spk_ctl_gpio, rk312x->spk_active_level);
+                        DBG(KERN_INFO"%s : spk gpio enable\n",__func__);
+                }
+
+                if (rk312x->hp_ctl_gpio != INVALID_GPIO) {
+                gpio_set_value(rk312x->hp_ctl_gpio, rk312x->hp_active_level);
+                DBG("%s : enable hp gpio\n",__func__);
+        	}
 		break;
 	default:
 		DBG(KERN_ERR"--rk312x codec %s-- unknown cmd\n", __func__);
