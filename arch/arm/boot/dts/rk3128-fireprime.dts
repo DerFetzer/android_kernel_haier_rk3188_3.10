@@ -3,7 +3,7 @@
 #include "rk3128.dtsi"
 #include "rk3128-cif-sensor.dtsi"
 #include "rk312x-sdk.dtsi"
-#include "lcd-b101ew05.dtsi"
+#include "lcd-box.dtsi"
 
 / {
 	 compatible = "rockchip,rk3128";
@@ -47,21 +47,7 @@ test-power {
 
 &lcdc {
 	status = "okay";
-
-	backlight = <&backlight>;
-	pinctrl-names = "default", "gpio";
-	pinctrl-0 = <&lcdc0_lcdc>;
-	pinctrl-1 = <&lcdc0_gpio>;
-
-	rockchip,fb-win-map = <FB_DEFAULT_ORDER>;
-	power_ctr: power_ctr {
-		rockchip,debug = <0>;
-		lcd_cs: lcd_cs {
-			rockchip,power_type = <GPIO>;
-			gpios = <&gpio0 GPIO_D0 GPIO_ACTIVE_HIGH>;
-			rockchip,delay = <10>;
-		};
-	};
+        rockchip,fb-win-map = <FB0_WIN0_FB1_WIN1_FB2_WIN2>;
 };
 
 &hdmi {
