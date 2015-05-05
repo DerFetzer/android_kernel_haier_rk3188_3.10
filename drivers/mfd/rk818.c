@@ -962,6 +962,8 @@ static struct of_regulator_match rk818_reg_matches[] = {
 	{ .name = "rk818_ldo10", .driver_data = (void *)13 },
 };
 
+int cpu_det_gpio;
+int power_hold_gpio;
 static struct rk818_board *rk818_parse_dt(struct rk818 *rk818)
 {
 	struct rk818_board *pdata;
@@ -1010,6 +1012,24 @@ static struct rk818_board *rk818_parse_dt(struct rk818 *rk818)
 		}
 	pdata->pmic_sleep = true;
 	pdata->pm_off = of_property_read_bool(rk818_pmic_np,"rk818,system-power-controller");
+	cpu_det_gpio = of_get_named_gpio(rk818_pmic_np,"cpu_det_gpio",0);
+	if (!gpio_is_valid(cpu_det_gpio)) {
+		printk("invalid gpio: %d\n",  cpu_det_gpio);
+		return NULL;
+	}
+	else {
+		gpio_direction_output(cpu_det_gpio,1);
+		printk("cpu_det_gpio up\n");
+	}
+	power_hold_gpio = of_get_named_gpio(rk818_pmic_np,"power_hold_gpio",0);
+	if (!gpio_is_valid(power_hold_gpio)) {
+		printk("invalid gpio: %d\n",  power_hold_gpio);
+		return NULL;
+	}
+	else {
+		gpio_direction_output(power_hold_gpio,1);
+		printk("power_hold_gpio up\n");
+	}
 		
 	return pdata;
 }

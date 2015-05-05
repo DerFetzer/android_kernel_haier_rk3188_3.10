@@ -654,7 +654,7 @@
 
 		gpio0_sdio0 {
 			sdio0_pwren: sdio0_pwren {
-				rockchip,pins = <MMC1_PWREN>;
+				rockchip,pins = <FUNC_TO_GPIO(MMC1_PWREN)>;
 				rockchip,pull = <VALUE_PULL_DEFAULT>;
 				
 
