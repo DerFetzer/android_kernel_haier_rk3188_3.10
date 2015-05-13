@@ -7,6 +7,7 @@
 
 / {
 	 compatible = "rockchip,rk3128";
+	/*
         backlight: backlight {
                 compatible = "pwm-backlight";
                 pwms = <&pwm0 0 25000>;
@@ -14,6 +15,7 @@
                 default-brightness-level = <128>;
                 enable-gpios = <&gpio0 GPIO_D3 GPIO_ACTIVE_HIGH>;
         };
+	*/
         wireless-wlan {
                 compatible = "wlan-platdata";
 
@@ -42,6 +44,24 @@
 
                 status = "okay";
         };
+
+                wireless-bluetooth {
+                compatible = "bluetooth-platdata";
+
+                //wifi-bt-power-toggle;
+
+                uart_rts_gpios = <&gpio0 GPIO_C1 GPIO_ACTIVE_LOW>;
+                pinctrl-names = "default","rts_gpio";
+                pinctrl-0 = <&uart0_rts>;
+                pinctrl-1 = <&uart0_rts_gpio>;
+
+                //BT,power_gpio = <&gpio1 GPIO_B3 GPIO_ACTIVE_HIGH>;
+                BT,reset_gpio = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
+                BT,wake_gpio = <&gpio1 GPIO_B2 GPIO_ACTIVE_HIGH>;
+                BT,wake_host_irq = <&gpio1 GPIO_B1 GPIO_ACTIVE_LOW>;
+
+        status = "okay";
+    };
 
         firefly-led{
              compatible = "firefly,led";
@@ -102,6 +122,13 @@ test-power {
 
 &hdmi {
         status = "okay";
+};
+
+&uart0 {
+        status = "okay";
+	clock-frequency = "<24000000>";
+        dma-names = "!tx", "!rx";
+        pinctrl-0 = <&uart0_xfer &uart0_cts>;
 };
 
 &sdmmc {
