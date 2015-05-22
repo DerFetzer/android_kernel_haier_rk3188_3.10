@@ -164,7 +164,7 @@ test-power {
 
 &dwc_control_usb {
 	usb_uart {
-		status = "ok";
+		status = "disabled";
 	};
 };
 &codec {
