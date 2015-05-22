@@ -110,8 +110,13 @@ test-power {
 };
 
 &fb {
-	rockchip,disp-mode = <ONE_DUAL>;
-	rockchip,uboot-logo-on = <1>;
+       rockchip,disp-mode = <NO_DUAL>;
+       rockchip,disp-policy = <DISPLAY_POLICY_BOX>;
+       rockchip,uboot-logo-on = <1>;
+};
+
+&disp_timings {
+        native-mode = <&timing0>;
 };
 
 &rk_screen {
