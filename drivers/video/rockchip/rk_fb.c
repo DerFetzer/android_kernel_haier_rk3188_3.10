@@ -76,6 +76,7 @@ static struct rk_fb_trsm_ops *trsm_lvds_ops;
 static struct rk_fb_trsm_ops *trsm_edp_ops;
 static struct rk_fb_trsm_ops *trsm_mipi_ops;
 static int uboot_logo_on;
+int whole_screen_type = SCREEN_NULL;
 int support_uboot_display(void)
 {
 	return uboot_logo_on;
@@ -2473,6 +2474,12 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		};
 
 		dev_drv->wait_fs = win_data.wait_fs;
+		struct rk_fb_win_cfg_data *fb_value = &win_data;
+        	if(whole_screen_type == SCREEN_TVOUT){
+        	        fb_value->win_par->area_par->xsize = 720;
+        	        fb_value->win_par->area_par->ysize = 480;
+        	}
+
 		rk_fb_set_win_config(info, &win_data);
 
 		if (copy_to_user((struct rk_fb_win_cfg_data __user *)arg,
@@ -3092,6 +3099,7 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 		printk(KERN_ERR "%s driver not found!", name);
 		return -ENODEV;
 	}
+	whole_screen_type = screen->type;
 	if (screen->type == SCREEN_HDMI)
 		printk("hdmi %s lcdc%d\n", enable ? "connect to" : "remove from",
                		dev_drv->id);

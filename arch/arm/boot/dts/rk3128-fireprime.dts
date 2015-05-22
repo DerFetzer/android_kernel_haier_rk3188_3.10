@@ -133,6 +133,10 @@ test-power {
 &hdmi {
         status = "okay";
 };
+&tve {
+        status = "okay";
+        test_mode = <0>;
+};
 
 &uart0 {
         status = "okay";
