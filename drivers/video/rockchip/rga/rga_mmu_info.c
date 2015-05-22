@@ -526,7 +526,7 @@ static int rga_mmu_info_BitBlt_mode(struct rga_reg *reg, struct rga_req *req)
                 }
             }
         }
-        else {
+        else {/*
             MMU_p = MMU_Base;
 
             if(req->src.yrgb_addr == (uint32_t)rga_service.pre_scale_buf) {
@@ -537,6 +537,14 @@ static int rga_mmu_info_BitBlt_mode(struct rga_reg *reg, struct rga_req *req)
                 for(i=0; i<SrcMemSize; i++)
                     MMU_p[i] = (uint32_t)((SrcStart + i) << PAGE_SHIFT);
             }
+*/
+	 ret = rga_MapUserMemory(&pages[0], &MMU_Base[0], SrcStart, SrcMemSize);
+                if (ret < 0) {
+                    pr_err("rga map src memory failed\n");
+                    status = ret;
+                    break;
+                }
+
         }
 
         if ((req->mmu_info.mmu_flag >> 10) & 1) {
@@ -552,10 +560,19 @@ static int rga_mmu_info_BitBlt_mode(struct rga_reg *reg, struct rga_req *req)
                 }
             }
         }
-        else {
+        else {/*
             MMU_p = MMU_Base + SrcMemSize;
             for(i=0; i<DstMemSize; i++)
                 MMU_p[i] = (uint32_t)((DstStart + i) << PAGE_SHIFT);
+
+		*/
+	  ret = rga_MapUserMemory(&pages[SrcMemSize], &MMU_Base[SrcMemSize], DstStart, DstMemSize);
+                if (ret < 0) {
+                    pr_err("rga map dst memory failed\n");
+                    status = ret;
+                    break;
+                }
+
         }
 
         MMU_Base[AllSize] = MMU_Base[AllSize-1];

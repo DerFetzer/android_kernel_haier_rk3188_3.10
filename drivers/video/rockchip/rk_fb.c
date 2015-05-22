@@ -2220,6 +2220,13 @@ EXPORT_SYMBOL(rk_get_real_fps);
 static struct ion_handle *ion_hanle[ION_MAX];
 static struct ion_handle *ion_hwc[1];
 #endif
+
+struct rk_fb_mem_inf {
+        uint32_t yrgb;
+        uint32_t cbr;
+        uint32_t len;
+};
+
 static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		       unsigned long arg)
 {
@@ -2235,7 +2242,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	struct rk_fb_win_cfg_data win_data;
 	unsigned int dsp_addr[4];
 	int list_stat;
-
+	 struct rk_fb_mem_inf mem_info;
 	int win_id = dev_drv->ops->fb_get_win_id(dev_drv, info->fix.id);
 
 	void __user *argp = (void __user *)arg;
@@ -2475,6 +2482,30 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		memset(&win_data, 0, sizeof(struct rk_fb_win_cfg_data));
 		break;
+	             //isle start
+        case 0x461d://FBIOGET_PHYMEMINFO
+                mem_info.yrgb = info->fix.smem_start;
+                        mem_info.cbr  = info->fix.mmio_start;
+                        mem_info.len  = info->fix.smem_len;
+            /*{
+                        int fd =
+                            ion_share_dma_buf_fd(rk_fb->ion_client,
+                                                 win->area[0].ion_hdl);
+                        if (fd < 0) {
+                                dev_err(info->dev,
+                                        "ion_share_dma_buf_fd failed\n");
+                                return fd;
+                        }
+                        mem_info.yrgb  = fd;
+                }
+          //  mem_info.yrgb = info->fix.smem_start;
+                                        mem_info.len  =                 get_fb_size();
+                                        */
+                        if (copy_to_user(argp, &mem_info, sizeof(mem_info)))
+                                return -EFAULT;
+
+             break;
+
 	default:
 		dev_drv->ops->ioctl(dev_drv, cmd, arg, win_id);
 		break;
