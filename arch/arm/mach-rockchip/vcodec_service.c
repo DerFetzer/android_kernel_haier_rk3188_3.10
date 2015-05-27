@@ -414,7 +414,9 @@ typedef struct vpu_service_info {
 	struct list_head done;			/* link to link_reg in struct vpu_reg */
 	struct list_head session;		/* link to list_session in struct vpu_session */
 	atomic_t total_running;
-	bool enabled;
+	atomic_t enabled;
+	atomic_t power_on_cnt;
+	atomic_t power_off_cnt;
 	vpu_reg *reg_codec;
 	vpu_reg *reg_pproc;
 	vpu_reg *reg_resev;
@@ -520,9 +522,10 @@ static void vcodec_enter_mode(struct vpu_subdev_data *data)
 #if defined(CONFIG_VCODEC_MMU)
 		if (data->mmu_dev && !test_bit(MMU_ACTIVATED, &data->state)) {
 			set_bit(MMU_ACTIVATED, &data->state);
-			BUG_ON(!pservice->enabled);
-			if (pservice->enabled)
+			if (atomic_read(&pservice->enabled))
 				rockchip_iovmm_activate(data->dev);
+			else
+				BUG_ON(!atomic_read(&pservice->enabled));
 		}
 #endif
 		return;
@@ -563,9 +566,10 @@ static void vcodec_enter_mode(struct vpu_subdev_data *data)
 #if defined(CONFIG_VCODEC_MMU)
 	if (data->mmu_dev && !test_bit(MMU_ACTIVATED, &data->state)) {
 		set_bit(MMU_ACTIVATED, &data->state);
-		BUG_ON(!pservice->enabled);
-		if (pservice->enabled)
+		if (atomic_read(&pservice->enabled))
 			rockchip_iovmm_activate(data->dev);
+		else
+			BUG_ON(!atomic_read(&pservice->enabled));
 	}
 #endif
 	pservice->prev_mode = pservice->curr_mode;
@@ -616,8 +620,10 @@ static int vpu_get_clk(struct vpu_service_info *pservice)
 		}
 		if (pservice->pd_video == NULL) {
 			pservice->pd_video = devm_clk_get(pservice->dev, "pd_video");
-			if (IS_ERR(pservice->pd_video))
+			if (IS_ERR(pservice->pd_video)) {
 				pservice->pd_video = NULL;
+				dev_info(pservice->dev, "do not have pd_video\n");
+			}
 		}
 		break;
 	default:
@@ -681,9 +687,10 @@ static void vpu_reset(struct vpu_subdev_data *data)
 #if defined(CONFIG_VCODEC_MMU)
 	if (data->mmu_dev && test_bit(MMU_ACTIVATED, &data->state)) {
 		clear_bit(MMU_ACTIVATED, &data->state);
-		BUG_ON(!pservice->enabled);
-		if (pservice->enabled)
+		if (atomic_read(&pservice->enabled))
 			rockchip_iovmm_deactivate(data->dev);
+		else
+			BUG_ON(!atomic_read(&pservice->enabled));
 	}
 #endif
 }
@@ -711,10 +718,10 @@ static void vpu_service_power_off(struct vpu_service_info *pservice)
 {
 	int total_running;
 	struct vpu_subdev_data *data = NULL, *n;
-	if (!pservice->enabled)
+	int ret = atomic_add_unless(&pservice->enabled, -1, 0);
+	if (!ret)
 		return;
 
-	pservice->enabled = false;
 	total_running = atomic_read(&pservice->total_running);
 	if (total_running) {
 		pr_alert("alert: power off when %d task running!!\n", total_running);
@@ -748,6 +755,7 @@ static void vpu_service_power_off(struct vpu_service_info *pservice)
 		clk_disable_unprepare(pservice->clk_cabac);
 #endif
 
+	atomic_add(1, &pservice->power_off_cnt);
 	wake_unlock(&pservice->wake_lock);
 	pr_info("done\n");
 }
@@ -773,6 +781,7 @@ static void vpu_power_off_work(struct work_struct *work_s)
 
 static void vpu_service_power_on(struct vpu_service_info *pservice)
 {
+	int ret;
 	static ktime_t last;
 	ktime_t now = ktime_get();
 	if (ktime_to_ns(ktime_sub(now, last)) > NSEC_PER_SEC) {
@@ -780,7 +789,8 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
 		vpu_queue_power_off_work(pservice);
 		last = now;
 	}
-	if (pservice->enabled)
+	ret = atomic_add_unless(&pservice->enabled, 1, 1);
+	if (!ret)
 		return ;
 
 	pr_info("%s: power on\n", dev_name(pservice->dev));
@@ -805,7 +815,7 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
 #endif
 
 	udelay(10);
-	pservice->enabled = true;
+	atomic_add(1, &pservice->power_on_cnt);
 	wake_lock(&pservice->wake_lock);
 }
 
@@ -2161,7 +2171,9 @@ static void vcodec_init_drvdata(struct vpu_service_info *pservice)
 
 	pservice->reg_pproc	= NULL;
 	atomic_set(&pservice->total_running, 0);
-	pservice->enabled = false;
+	atomic_set(&pservice->enabled,       0);
+	atomic_set(&pservice->power_on_cnt,  0);
+	atomic_set(&pservice->power_off_cnt, 0);
 
 	INIT_DELAYED_WORK(&pservice->power_off_work, vpu_power_off_work);
 
@@ -2596,7 +2608,12 @@ static int debug_vcodec_show(struct seq_file *s, void *unused)
 			seq_printf(s, "done    register set\n");
 		}
 	}
+
+	seq_printf(s, "\npower counter: on %d off %d\n",
+			atomic_read(&pservice->power_on_cnt),
+			atomic_read(&pservice->power_off_cnt));
 	mutex_unlock(&pservice->lock);
+	vpu_service_power_off(pservice);
 
 	return 0;
 }
