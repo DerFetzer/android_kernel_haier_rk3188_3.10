@@ -321,6 +321,7 @@ static int rockchip_hdmiv1_probe(struct platform_device *pdev)
 	rockchip_hdmiv1_dev_init_ops(&rockchip_hdmiv1_ops);
 	rockchip_hdmiv1_property.name = (char *)pdev->name;
 	rockchip_hdmiv1_property.priv = hdmi_dev;
+	rockchip_hdmiv1_property.feature |= SUPPORT_YCBCR_INPUT;
 	if (rk_fb_get_display_policy() == DISPLAY_POLICY_BOX)
 		rockchip_hdmiv1_property.feature |= SUPPORT_1080I |
 						    SUPPORT_480I_576I;
