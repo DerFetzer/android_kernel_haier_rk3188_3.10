@@ -162,6 +162,11 @@ test-power {
 			label = "power";
 			gpio-key,wakeup;
 		};
+                recovery-key {
+                        linux,code = <113>;
+                        label = "recovery";
+                        rockchip,adc_value = <4>;
+                };
 };
 
 &dwc_control_usb {
