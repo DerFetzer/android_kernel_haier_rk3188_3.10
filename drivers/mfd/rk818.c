@@ -1079,6 +1079,9 @@ void rk818_device_shutdown(void)
 	u8 reg = 0;
 	struct rk818 *rk818 = g_rk818;
 
+	gpio_direction_output(cpu_det_gpio,0);
+	//printk("%s-%d: cpu_det_gpio pull down\n", __FUNCTION__, __LINE__);
+
 	for (i = 0; i < 10; i++) {
 		pr_info("%s\n", __func__);
 		ret = rk818_i2c_read(rk818, RK818_DEVCTRL_REG, 1, &reg);
