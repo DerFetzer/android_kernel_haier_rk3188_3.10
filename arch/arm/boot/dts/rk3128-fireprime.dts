@@ -157,6 +157,7 @@ test-power {
 
 &hdmi {
         status = "okay";
+	rockchip,hdmi_audio_source = <1>;
 };
 &tve {
         status = "okay";
