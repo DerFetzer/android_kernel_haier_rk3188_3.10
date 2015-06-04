@@ -15,6 +15,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/compat.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -473,10 +474,15 @@ struct vcodec_combo {
         enum vcodec_device_id current_hw_mode;
 };
 
-typedef struct vpu_request {
-	unsigned long *req;
+struct vpu_request {
+	u32 *req;
 	u32 size;
-} vpu_request;
+};
+
+struct compat_vpu_request {
+	compat_uptr_t req;
+	u32 size;
+};
 
 /* debugfs root directory for all device (vpu, hevc).*/
 static struct dentry *parent;
@@ -893,8 +899,6 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, u8 *tbl,
 		return -1;
 	}
 
-	vpu_service_power_on(pservice);
-
 	for (i = 0; i < size; i++) {
 		usr_fd = reg->reg[tbl[i]] & 0x3FF;
 
@@ -1066,9 +1070,8 @@ static vpu_reg *reg_init(struct vpu_subdev_data *data,
 	}
 
 	if (size > data->reg_size) {
-		/*printk("warning: vpu reg size %lu is larger than hw reg size %lu\n",
-		  size, pservice->reg_size);
-		size = pservice->reg_size;*/
+		/*printk("warning: vpu reg size %u is larger than hw reg size %u\n",
+		  size, data->reg_size);*/
 		extra_size = size - data->reg_size;
 		size = data->reg_size;
 	}
@@ -1513,8 +1516,8 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case VPU_IOC_GET_HW_FUSE_STATUS : {
-		vpu_request req;
-		if (copy_from_user(&req, (void __user *)arg, sizeof(vpu_request))) {
+		struct vpu_request req;
+		if (copy_from_user(&req, (void __user *)arg, sizeof(struct vpu_request))) {
 			vpu_err("error: VPU_IOC_GET_HW_FUSE_STATUS copy_from_user failed\n");
 			return -EFAULT;
 		} else {
@@ -1540,10 +1543,10 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case VPU_IOC_SET_REG : {
-		vpu_request req;
+		struct vpu_request req;
 		vpu_reg *reg;
 		if (copy_from_user(&req, (void __user *)arg,
-			sizeof(vpu_request))) {
+			sizeof(struct vpu_request))) {
 			vpu_err("error: VPU_IOC_SET_REG copy_from_user failed\n");
 			return -EFAULT;
 		}
@@ -1560,10 +1563,10 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case VPU_IOC_GET_REG : {
-		vpu_request req;
+		struct vpu_request req;
 		vpu_reg *reg;
 		if (copy_from_user(&req, (void __user *)arg,
-			sizeof(vpu_request))) {
+			sizeof(struct vpu_request))) {
 			vpu_err("error: VPU_IOC_GET_REG copy_from_user failed\n");
 			return -EFAULT;
 		} else {
@@ -1646,9 +1649,10 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case COMPAT_VPU_IOC_GET_HW_FUSE_STATUS : {
-		vpu_request req;
+		struct compat_vpu_request req;
+
 		if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
-				   sizeof(vpu_request))) {
+				   sizeof(struct compat_vpu_request))) {
 			vpu_err("error: VPU_IOC_GET_HW_FUSE_STATUS"
 				" copy_from_user failed\n");
 			return -EFAULT;
@@ -1677,10 +1681,10 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case COMPAT_VPU_IOC_SET_REG : {
-		vpu_request req;
+		struct compat_vpu_request req;
 		vpu_reg *reg;
 		if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
-				   sizeof(vpu_request))) {
+				   sizeof(struct compat_vpu_request))) {
 			vpu_err("VPU_IOC_SET_REG copy_from_user failed\n");
 			return -EFAULT;
 		}
@@ -1697,10 +1701,10 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 	case COMPAT_VPU_IOC_GET_REG : {
-		vpu_request req;
+		struct compat_vpu_request req;
 		vpu_reg *reg;
 		if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
-				   sizeof(vpu_request))) {
+				   sizeof(struct compat_vpu_request))) {
 			vpu_err("VPU_IOC_GET_REG copy_from_user failed\n");
 			return -EFAULT;
 		} else {
