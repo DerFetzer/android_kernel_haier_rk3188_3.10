@@ -279,6 +279,22 @@ static int mtdblock_writesect(struct mtd_blktrans_dev *dev,
 	return do_cached_write(mtdblk, block<<9, 512, buf);
 }
 
+static int mtdblock_discardsect(struct mtd_blktrans_dev *dev, unsigned long block,unsigned long nsect)
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35))
+    struct mtdblk_dev *mtdblk = container_of(dev, struct mtdblk_dev, mbd);
+    struct mtd_info *mtd = mtdblk->mbd.mtd;
+#else
+    struct mtdblk_dev *mtdblk = mtdblks[dev->devnum];
+    struct mtd_info *mtd = mtdblk->mtd;
+#endif
+    size_t len;
+    loff_t pos = (loff_t)block*512;
+    len = 512*nsect;
+    //printk("mtdblock_discardsect: write on \"%s\" at 0x%llx (0x%x), size 0x%x(0x%x)\n",mtd->name, pos, block, len,nsect);
+    return mtd->discard(mtd, pos, len);
+}
+
 static int mtdblock_open(struct mtd_blktrans_dev *mbd)
 {
 	struct mtdblk_dev *mtdblk = container_of(mbd, struct mtdblk_dev, mbd);
@@ -381,6 +397,7 @@ static struct mtd_blktrans_ops mtdblock_tr = {
 	.release	= mtdblock_release,
 	.readsect	= mtdblock_readsect,
 	.writesect	= mtdblock_writesect,
+	.discard    = mtdblock_discardsect,
 	.add_mtd	= mtdblock_add_mtd,
 	.remove_dev	= mtdblock_remove_dev,
 	.owner		= THIS_MODULE,

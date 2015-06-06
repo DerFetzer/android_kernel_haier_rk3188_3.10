@@ -180,6 +180,17 @@ static int part_write(struct mtd_info *mtd, loff_t to, size_t len,
 				    retlen, buf);
 }
 
+static int part_discard(struct mtd_info *mtd, loff_t to, size_t len)
+{
+	struct mtd_part *part = PART(mtd);
+	if (!(mtd->flags & MTD_WRITEABLE))
+		return -EROFS;
+	if (to >= mtd->size)
+		len = 0;
+	else if (to + len > mtd->size)
+		len = mtd->size - to;
+	return part->master->discard(part->master, to + part->offset,len);
+}
 static int part_panic_write(struct mtd_info *mtd, loff_t to, size_t len,
 		size_t *retlen, const u_char *buf)
 {
@@ -378,6 +389,7 @@ static struct mtd_part *allocate_partition(struct mtd_info *master,
 
 	slave->mtd._read = part_read;
 	slave->mtd._write = part_write;
+	slave->mtd.discard = part_discard;
 
 	if (master->_panic_write)
 		slave->mtd._panic_write = part_panic_write;
