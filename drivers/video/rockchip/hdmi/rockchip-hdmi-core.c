@@ -311,12 +311,12 @@ static void hdmi_work_queue(struct work_struct *work)
 		break;
 	case HDMI_DISABLE_CTL:
 		if (hdmi->enable) {
-			if (!hdmi->sleep) {
-				if (hdmi->ops->disable)
-					hdmi->ops->disable(hdmi);
-				hdmi_wq_remove(hdmi);
-			}
-			hdmi->enable = 0;
+		//	if (!hdmi->sleep) {
+		//		if (hdmi->ops->disable)
+		//			hdmi->ops->disable(hdmi);
+		//		hdmi_wq_remove(hdmi);
+		//	}
+		//	hdmi->enable = 0;
 		}
 		break;
 	case HDMI_SUSPEND_CTL:
