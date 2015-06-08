@@ -4357,6 +4357,7 @@ int dw_mci_resume(struct dw_mci *host)
 	int i, ret, retry_cnt = 0;
 	u32 regs;
         struct dw_mci_slot *slot;
+	int present = dw_mci_get_cd(host->mmc);
 
 	if (host->rst_ops &&
 		host->rst_ops->post_resume)
@@ -4383,9 +4384,11 @@ int dw_mci_resume(struct dw_mci *host)
                         disable_irq_wake(host->mmc->slot.cd_irq);
                         mmc_gpio_free_cd(host->mmc);
                 }
+	if (present) {
 		if(pinctrl_select_state(host->pinctrl, host->pins_default) < 0)
                         MMC_DBG_ERR_FUNC(host->mmc, "Default pinctrl setting failed! [%s]",
                                                 mmc_hostname(host->mmc));
+	}
 
 		/* Disable jtag*/
 		if(cpu_is_rk3288())
