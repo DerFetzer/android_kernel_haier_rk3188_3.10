@@ -136,6 +136,14 @@ test-power {
                 reg = <0x51>;
                 irq_gpio = <&gpio0 GPIO_D4 IRQ_TYPE_EDGE_FALLING>;
         };
+		ts@41 { 
+			compatible = "tchip,gsl3680";
+			reg = <0x41>;
+			touch-gpio = <&gpio1 GPIO_B4 IRQ_TYPE_EDGE_RISING>;
+			//reset-gpio = <&gpio8 GPIO_A6 GPIO_ACTIVE_LOW>;
+			max-x = <1280>;
+			max-y = <800>;
+		};   
 };
 
 &fb {

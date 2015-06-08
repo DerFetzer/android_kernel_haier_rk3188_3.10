@@ -18,9 +18,9 @@ config TOUCHSCREEN_ZET62XX
 
 
 config TOUCHSCREEN_GSLX680
-	tristate "gslX680 touchscreen driver"
+	tristate "gslX680 touchscreen driver for firefly"
 	help
-		gslX680 touchscreen driver
+		gslX680 touchscreen driver for firefly
 
 config TOUCHSCREEN_GT8XX
 	tristate "Goodix touch screen gt801X2 support for rockchip based platform"
