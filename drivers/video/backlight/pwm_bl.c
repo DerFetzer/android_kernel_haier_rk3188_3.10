@@ -23,6 +23,8 @@
 #include <linux/pwm_backlight.h>
 #include <linux/slab.h>
 
+#define MAX_BRIGHTNESS 255
+
 struct pwm_bl_data {
 	struct pwm_device	*pwm;
 	struct device		*dev;
@@ -78,14 +80,19 @@ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
 static int compute_duty_cycle(struct pwm_bl_data *pb, int brightness)
 {
 	unsigned int lth = pb->lth_brightness;
+	int scale_brightness;
 	int duty_cycle;
+	int cycle;
 
 	if (pb->levels)
-		duty_cycle = pb->levels[brightness];
+	{
+		scale_brightness = brightness * pb->scale/ MAX_BRIGHTNESS;
+		duty_cycle = pb->levels[scale_brightness];
+	}
 	else
 		duty_cycle = brightness;
 
-	return (duty_cycle * (pb->period - lth) / pb->scale) + lth;
+	return (duty_cycle * (pb->period - lth) / MAX_BRIGHTNESS) + lth;
 }
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -239,14 +246,23 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 
 	if (data->levels) {
 		unsigned int i;
+		unsigned int scale_min = MAX_BRIGHTNESS;
 
-		for (i = 0; i <= data->max_brightness; i++)
-			if (data->levels[i] > pb->scale)
+		for (i = 0; i <= data->max_brightness; i++) {
+			if (data->levels[i] > pb->scale) {
 				pb->scale = data->levels[i];
+			}
+			if (data->levels[i] < scale_min) {
+				scale_min = data->levels[i];
+			}
+		}
+		pb->scale = pb->scale - scale_min;
 
 		pb->levels = data->levels;
 	} else
 		pb->scale = data->max_brightness;
+
+	data->max_brightness = MAX_BRIGHTNESS;
 
 	pb->enable_gpio = data->enable_gpio;
 	pb->enable_gpio_flags = data->enable_gpio_flags;
