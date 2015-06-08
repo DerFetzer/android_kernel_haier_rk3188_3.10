@@ -77,6 +77,9 @@
 #define SDMMC_CMD_RTO_MAX_HOLD  200
 #define SDMMC_WAIT_FOR_UNBUSY	2500
 
+#define DW_REGS_SIZE	(0x0098 + 4)
+#define DW_REGS_NUM	(0x0098 / 4)
+
 #ifdef CONFIG_MMC_DW_IDMAC
 #define IDMAC_INT_CLR		(SDMMC_IDMAC_INT_AI | SDMMC_IDMAC_INT_NI | \
 				 SDMMC_IDMAC_INT_CES | SDMMC_IDMAC_INT_DU | \
@@ -131,6 +134,52 @@ static const u8 tuning_blk_pattern_8bit[] = {
 	0xdd, 0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff,
 	0xbb, 0xbb, 0xff, 0xff, 0xff, 0x77, 0xff, 0xff,
 	0xff, 0x77, 0x77, 0xff, 0x77, 0xbb, 0xdd, 0xee,
+};
+
+
+static struct sdmmc_reg dw_mci_regs[] =
+{
+  { 0x0000, "CTRL" },
+  { 0x0004, "PWREN" },
+  { 0x0008, "CLKDIV" },
+  { 0x000C, "CLKSRC" },
+  { 0x0010, "CLKENA" },
+  { 0x0014, "TMOUT" },
+  { 0x0018, "CTYPE" },
+  { 0x001C, "BLKSIZ" },
+  { 0x0020, "BYTCNT" },
+  { 0x0024, "INTMASK" },
+  { 0x0028, "CMDARG" },
+  { 0x002C, "CMD" },
+  { 0x0030, "RESP0" },
+  { 0x0034, "RESP1" },
+  { 0x0038, "RESP2" },
+  { 0x003C, "RESP3" },
+  { 0x0040, "MINSTS" },
+  { 0x0044, "RINTSTS" },
+  { 0x0048, "STATUS" },
+  { 0x004C, "FIFOTH" },
+  { 0x0050, "CDETECT" },
+  { 0x0054, "WRTPRT" },
+  { 0x0058, "GPIO" },
+  { 0x005C, "TCBCNT" },
+  { 0x0060, "TBBCNT" },
+  { 0x0064, "DEBNCE" },
+  { 0x0068, "USRID" },
+  { 0x006C, "VERID" },
+  { 0x0070, "HCON" },
+  { 0x0074, "UHS_REG" },
+  { 0x0078, "RST_n" },
+  { 0x0080, "BMOD" },
+  { 0x0084, "PLDMND" },
+  { 0x0088, "DBADDR" },
+  { 0x008C, "IDSTS" },
+  { 0x0090, "IDINTEN" },
+  { 0x0094, "DSCADDR" },
+  { 0x0098, "BUFADDR" },
+  { 0x0100, "CARDTHRCTL" },
+  { 0x0104, "BackEndPwr" },
+  { 0, 0 }
 };
 
 static inline bool dw_mci_fifo_reset(struct dw_mci *host);
@@ -2010,9 +2059,96 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
+	struct mmc_data	*data;
+	u32 ret, i, regs, cmd_flags;
+	u32 sdio_int;
+	unsigned long timeout = 0;
+	bool ret_timeout = true;
+
 	host->cur_slot->mrq = NULL;
 	host->mrq = NULL;
 	host->state = STATE_IDLE;
+
+	data = host->data;
+
+	printk("[%s] -- Timeout recovery procedure start --\n",
+		mmc_hostname(host->mmc));
+
+	if (data && (data->stop)) {
+		send_stop_cmd(host, data);
+	} else {
+		mci_writel(host, CMDARG, 0);
+		wmb();
+		cmd_flags = SDMMC_CMD_STOP | SDMMC_CMD_RESP_CRC |
+			SDMMC_CMD_RESP_EXP | MMC_STOP_TRANSMISSION;
+
+		if (host->mmc->hold_reg_flag)
+			cmd_flags |= SDMMC_CMD_USE_HOLD_REG;
+
+		mci_writel(host, CMD, cmd_flags | SDMMC_CMD_START);
+		wmb();
+		timeout = jiffies + msecs_to_jiffies(500);
+
+		while(ret_timeout) {
+			ret_timeout = time_before(jiffies, timeout);
+			if(!(mci_readl(host, CMD) & SDMMC_CMD_START))
+				break;
+		}
+
+		if (false == ret_timeout)
+			MMC_DBG_ERR_FUNC(host->mmc, "stop recovery failed![%s]",
+					mmc_hostname(host->mmc));
+	}
+
+	if (!dw_mci_ctrl_all_reset(host)) {
+		ret = -ENODEV;
+		return ;
+	}
+
+#ifdef CONFIG_MMC_DW_IDMAC
+	if (host->use_dma && host->dma_ops->init)
+		host->dma_ops->init(host);
+#endif
+
+	/*
+	* Restore the initial value at FIFOTH register
+	* And Invalidate the prev_blksz with zero
+	*/
+	mci_writel(host, FIFOTH, host->fifoth_val);
+	host->prev_blksz = 0;
+	mci_writel(host, TMOUT, 0xFFFFFFFF);
+	mci_writel(host, RINTSTS, 0xFFFFFFFF);
+	regs = SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER | SDMMC_INT_TXDR
+			| SDMMC_INT_RXDR | SDMMC_INT_VSI | DW_MCI_ERROR_FLAGS;
+	if (!(host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO))
+		regs |= SDMMC_INT_CD;
+
+	if ((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO)) {
+		if (host->verid < DW_MMC_240A)
+			sdio_int = SDMMC_INT_SDIO(0);
+		else
+			sdio_int = SDMMC_INT_SDIO(8);
+
+		if (mci_readl(host, INTMASK) & sdio_int)
+			regs |= sdio_int;
+	}
+
+	mci_writel(host, INTMASK, regs);
+	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE);
+	for (i = 0; i < host->num_slots; i++) {
+		struct dw_mci_slot *slot = host->slot[i];
+		if (!slot)
+			continue;
+		if (slot->mmc->pm_flags & MMC_PM_KEEP_POWER) {
+			dw_mci_set_ios(slot->mmc, &slot->mmc->ios);
+			dw_mci_setup_bus(slot, true);
+		}
+	}
+	mci_writel(host, RINTSTS, 0xFFFFFFFF);
+
+	printk("[%s] -- Timeout recovery procedure finished --\n",
+		mmc_hostname(host->mmc));
+
 }
 
 static const struct mmc_host_ops dw_mci_ops = {
@@ -3742,6 +3878,43 @@ static inline bool dw_mci_ctrl_all_reset(struct dw_mci *host)
 				 SDMMC_CTRL_DMA_RESET);
 }
 
+static void dw_mci_rst_pre_suspend(struct dw_mci *host)
+{
+	u32 index;
+	u32 *buffer;
+
+	buffer = host->regs_buffer;
+
+	for (index = 0; index < DW_REGS_NUM ; index++){
+		*buffer = mci_readreg(host, index*4);
+		MMC_DBG_INFO_FUNC(host->mmc, "[%s] :0x%08x.\n",
+			dw_mci_regs[index].name, *buffer);
+		buffer++;
+	}
+
+	*buffer = mci_readl(host,CDTHRCTL);
+	MMC_DBG_INFO_FUNC(host->mmc, "[%s] :0x%08x.\n", "CARDTHRCTL", *buffer);
+}
+
+static void dw_mci_rst_post_resume(struct dw_mci *host)
+{
+	u32 index;
+	u32 *buffer;
+
+	buffer = host->regs_buffer;
+
+	for (index = 0; index < DW_REGS_NUM; index++){
+		mci_writereg(host, index*4, *buffer);
+		buffer++;
+	}
+	mci_writel(host, CDTHRCTL, *buffer);
+}
+
+static const struct dw_mci_rst_ops dw_mci_pdrst_ops = {
+	.pre_suspend = dw_mci_rst_pre_suspend,
+	.post_resume = dw_mci_rst_post_resume,
+};
+
 #ifdef CONFIG_OF
 /*
 static struct dw_mci_of_quirks {
@@ -3825,7 +3998,20 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (of_get_property(np, "cd-inverted", NULL))
 		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
 	if (of_get_property(np, "bootpart-no-access", NULL))
-		pdata->caps2 |= MMC_CAP2_BOOTPART_NOACC;	
+		pdata->caps2 |= MMC_CAP2_BOOTPART_NOACC;
+
+	if (of_get_property(np, "controller-power-down", NULL)) {
+		host->regs_buffer = (u32 *)devm_kzalloc(host->dev,
+						DW_REGS_SIZE, GFP_KERNEL);
+		if (!host->regs_buffer) {
+			dev_err(host->dev,
+				"could not allocate memory for regs_buffer\n");
+			return ERR_PTR(-ENOMEM);
+		}
+
+		host->rst_ops = &dw_mci_pdrst_ops;
+		mmc_assume_removable = 0;
+	}
 
 	return pdata;
 }
@@ -4126,23 +4312,26 @@ EXPORT_SYMBOL(dw_mci_remove);
 extern int get_wifi_chip_type(void);
 int dw_mci_suspend(struct dw_mci *host)
 {
-	if((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) &&
-		(get_wifi_chip_type() == WIFI_ESP8089 || get_wifi_chip_type() > WIFI_AP6XXX_SERIES))
+	int present = dw_mci_get_cd(host->mmc);
+
+	if((host->mmc->restrict_caps &
+		RESTRICT_CARD_TYPE_SDIO) &&
+		(get_wifi_chip_type() == WIFI_ESP8089 ||
+		get_wifi_chip_type() > WIFI_AP6XXX_SERIES))
 		return 0;
 
-        if(host->vmmc)
-                regulator_disable(host->vmmc);
+	if(host->vmmc)
+		regulator_disable(host->vmmc);
 
-        /*only for sdmmc controller*/
-        if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
-                disable_irq(host->irq);
-                if (pinctrl_select_state(host->pinctrl, host->pins_idle) < 0)
-                        MMC_DBG_ERR_FUNC(host->mmc, "Idle pinctrl setting failed! [%s]",
-                                                mmc_hostname(host->mmc));
-
-                mci_writel(host, RINTSTS, 0xFFFFFFFF);
-                mci_writel(host, INTMASK, 0x00);
-                mci_writel(host, CTRL, 0x00);
+	/* Only for sdmmc controller */
+	if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
+		disable_irq(host->irq);
+		if (present) {
+			if (pinctrl_select_state(host->pinctrl, host->pins_idle) < 0)
+				MMC_DBG_ERR_FUNC(host->mmc,
+					"Idle pinctrl setting failed! [%s]",
+					mmc_hostname(host->mmc));
+		}
 
                 /* Soc rk3126/3036 already in gpio_cd mode */
                 if (!soc_is_rk3126() && !soc_is_rk3126b() && !soc_is_rk3036()) {
@@ -4150,6 +4339,15 @@ int dw_mci_suspend(struct dw_mci *host)
                         enable_irq_wake(host->mmc->slot.cd_irq);
                 }
         }
+
+	mci_writel(host, RINTSTS, 0xFFFFFFFF);
+	mci_writel(host, INTMASK, 0x00);
+	mci_writel(host, CTRL, 0x00);
+
+        if (host->rst_ops &&
+		host->rst_ops->pre_suspend)
+		host->rst_ops->pre_suspend(host);
+
         return 0;
 }
 EXPORT_SYMBOL(dw_mci_suspend);
@@ -4160,8 +4358,14 @@ int dw_mci_resume(struct dw_mci *host)
 	u32 regs;
         struct dw_mci_slot *slot;
 
-	if((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) &&
-		(get_wifi_chip_type() == WIFI_ESP8089 || get_wifi_chip_type() > WIFI_AP6XXX_SERIES))
+	if (host->rst_ops &&
+		host->rst_ops->post_resume)
+		host->rst_ops->post_resume(host);
+
+
+	if ((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) &&
+		(get_wifi_chip_type() == WIFI_ESP8089 ||
+			get_wifi_chip_type() > WIFI_AP6XXX_SERIES))
 		return 0;
 
 
@@ -4220,12 +4424,15 @@ int dw_mci_resume(struct dw_mci *host)
 	mci_writel(host, TMOUT, 0xFFFFFFFF);
 
 	mci_writel(host, RINTSTS, 0xFFFFFFFF);
-	regs = SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER | SDMMC_INT_TXDR | SDMMC_INT_RXDR | SDMMC_INT_VSI |
-		   DW_MCI_ERROR_FLAGS;
+	regs = SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER | SDMMC_INT_TXDR |
+		SDMMC_INT_RXDR | SDMMC_INT_VSI | DW_MCI_ERROR_FLAGS;
+
 	if(!(host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO))
-	    regs |= SDMMC_INT_CD;	   
+	    regs |= SDMMC_INT_CD;
+
 	mci_writel(host, INTMASK, regs);
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE);
+
 	/*only for sdmmc controller*/
 	if((host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)&& (!retry_cnt)){
 		enable_irq(host->irq);	

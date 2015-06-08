@@ -111,9 +111,11 @@
 *v0.0x1a.0:
 		 1) vpu_node changed from "vpu_service" to "rockchip,vpu_sub"
 *v0.0x1b.0:
-		 1) use of_find_node_by_name to get vpu node instead of of_find_compatible_node 
+		 1) use of_find_node_by_name to get vpu node instead of of_find_compatible_node
+*v0.0x1b.1:
+		 1) GPIO(gpio7 GPIO_B5) is EBUSY when register after factory reset, but after power on ,it's normal.
 */
-#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0,0x1b,0)
+#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0,0x1b,1)
 
 
 #define CAMSYS_PLATFORM_DRV_NAME                "RockChip-CamSys"
