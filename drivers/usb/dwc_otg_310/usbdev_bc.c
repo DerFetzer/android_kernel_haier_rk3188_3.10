@@ -28,7 +28,7 @@ char *bc_string[USB_BC_TYPE_MAX] = {"DISCONNECT",
 
 uoc_field_t *pBC_UOC_FIELDS;
 static void *pGRF_BASE;
-static struct mutex bc_mutex;
+DEFINE_MUTEX(bc_mutex);
 
 static enum bc_port_type usb_charger_status = USB_BC_TYPE_DISCNT;
 
@@ -362,7 +362,6 @@ enum bc_port_type usb_battery_charger_detect(bool wait)
 		return -1;
 	if (!pGRF_BASE) {
 		pGRF_BASE = get_grf_base(np);
-		mutex_init(&bc_mutex);
 	}
 
 	mutex_lock(&bc_mutex);
