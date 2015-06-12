@@ -205,6 +205,7 @@ test-power {
 };
 &codec {
 	spk_ctl_io = <&gpio3 GPIO_C5 GPIO_ACTIVE_HIGH>;
+	aux_det_io = <&gpio0 GPIO_D3 GPIO_ACTIVE_HIGH>;
         spk-mute-delay = <200>;
         hp-mute-delay = <100>;
         rk312x_for_mid = <0>;
@@ -238,6 +239,10 @@ test-power {
         clock_in_out = "input";
         tx_delay = <0x30>;
         rx_delay = <0x10>;
+};
+
+&pwm1 {
+        status = "okay";
 };
 
 &clk_core_dvfs_table {

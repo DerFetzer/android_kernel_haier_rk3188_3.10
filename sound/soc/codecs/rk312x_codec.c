@@ -61,6 +61,10 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 #define BIT_HEADSET_NO_MIC      (1 << 1)
 #define GRF_ACODEC_CON  0x013c
 #define GRF_SOC_STATUS0 0x014c
+
+#define LINE_IN_OKAY 1
+#define LINE_IN_NO   0
+static int line_in_status = 0;
 /* volume setting
  *  0: -39dB
  *  26: 0dB
@@ -90,6 +94,7 @@ struct rk312x_codec_priv {
 	int capture_active;
 	int spk_ctl_gpio;
 	int hp_ctl_gpio;
+	int aux_det_gpio;
 	int spk_mute_delay;
 	int hp_mute_delay;
 	int spk_hp_switch_gpio;
@@ -119,6 +124,7 @@ struct rk312x_codec_priv {
 	struct work_struct work;
 	struct delayed_work init_delayed_work;
 	struct delayed_work hpdet_work;
+	struct delayed_work aux_det_work;
 };
 static struct rk312x_codec_priv *rk312x_priv;
 
@@ -1878,6 +1884,7 @@ static int rockchip_line_in(int type)
 		}
 	printk("%s enable\n",__FUNCTION__);
 	}
+	return 0;
 }
 
 
@@ -2321,6 +2328,39 @@ static void hpdet_work_func(struct work_struct *work)
 	}
 	return;
 }
+static irqreturn_t aux_det_isr(int irq, void *data)
+{
+        line_in_status = gpio_get_value(rk312x_priv->aux_det_gpio);
+	if ( line_in_status == LINE_IN_NO ){
+	//set line in off
+		printk(" line_in: [off] \n");
+		line_in_status = LINE_IN_NO;
+                rk312x_codec_power_up(RK312x_CODEC_PLAYBACK);
+	}
+	else if (line_in_status == LINE_IN_OKAY){
+	//set line in on
+		printk(" line_in: [on] \n");
+		line_in_status = LINE_IN_OKAY;
+		rockchip_line_in(RK312x_CODEC_LINE_IN);
+		gpio_set_value(rk312x_priv->spk_ctl_gpio, rk312x_priv->spk_active_level);
+	}
+        return IRQ_HANDLED;
+}
+
+static void aux_det_work_func(struct work_struct *work)
+{
+	line_in_status = gpio_get_value(rk312x_priv->aux_det_gpio);
+	if (line_in_status == LINE_IN_OKAY){
+		rockchip_line_in(RK312x_CODEC_LINE_IN);
+		gpio_set_value(rk312x_priv->spk_ctl_gpio, rk312x_priv->spk_active_level);
+		printk(" [on] \n");
+	}else if (line_in_status == LINE_IN_NO)
+	{
+		rk312x_codec_power_up(RK312x_CODEC_PLAYBACK);
+		printk(" [off]\n");
+	}
+}
+
 static ssize_t h2w_print_name(struct switch_dev *sdev, char *buf)
 {
     return sprintf(buf, "Headset\n");
@@ -2328,7 +2368,7 @@ static ssize_t h2w_print_name(struct switch_dev *sdev, char *buf)
 static void rk312x_delay_workq(struct work_struct *work)
 {
 
-	int ret;
+	int ret, irq;
 	unsigned int val;
 	struct rk312x_codec_priv *rk312x_codec
 			= snd_soc_codec_get_drvdata(rk312x_priv->codec);
@@ -2372,6 +2412,14 @@ static void rk312x_delay_workq(struct work_struct *work)
 		schedule_delayed_work(&rk312x_priv->hpdet_work, msecs_to_jiffies(100));
 	}
 
+        irq = gpio_to_irq(rk312x_priv->aux_det_gpio);
+        if (irq < 0)
+                gpio_free(rk312x_priv->aux_det_gpio);
+        ret = request_irq(irq , aux_det_isr ,  IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING , "irq_aux_det", NULL);
+        if (ret)
+                gpio_free(rk312x_priv->aux_det_gpio);
+	
+	schedule_delayed_work(&rk312x_priv->aux_det_work, msecs_to_jiffies(100));
 
 }
 static int rk312x_probe(struct snd_soc_codec *codec)
@@ -2416,6 +2464,7 @@ static int rk312x_probe(struct snd_soc_codec *codec)
 				   ARRAY_SIZE(rk312x_snd_path_controls));
 	INIT_DELAYED_WORK(&rk312x_priv->init_delayed_work, rk312x_delay_workq);
 	INIT_DELAYED_WORK(&rk312x_priv->hpdet_work, hpdet_work_func);
+	INIT_DELAYED_WORK(&rk312x_priv->aux_det_work, aux_det_work_func);
 
 	schedule_delayed_work(&rk312x_priv->init_delayed_work, msecs_to_jiffies(3000));
 	if (rk312x_codec->gpio_debug) {
@@ -2635,6 +2684,14 @@ static int rk312x_platform_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		DBG(KERN_ERR"%s() Can not read property gpio_debug\n", __func__);
 		rk312x->codec_hp_det = 0;
+	}
+
+	rk312x->aux_det_gpio = of_get_named_gpio(rk312x_np, "aux_det_io", 0);
+	
+	ret = gpio_direction_input(rk312x->aux_det_gpio);
+	if (ret < 0){
+		printk("failed to direction for GPIO %d \n", rk312x->aux_det_gpio);
+		gpio_free(rk312x->aux_det_gpio);
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

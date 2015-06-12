@@ -702,8 +702,8 @@
 			};
 
 			pwm1_pin:pwm1 {
-				rockchip,pins = <PWM1>;
-				rockchip,pull = <VALUE_PULL_DEFAULT>;
+				rockchip,pins = <FUNC_TO_GPIO(PWM1)>;
+				rockchip,pull = <VALUE_PULL_UPDOWN_DISABLE>;
 				
 
 			};
