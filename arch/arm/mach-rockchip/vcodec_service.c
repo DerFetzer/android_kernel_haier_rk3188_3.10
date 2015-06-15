@@ -1273,7 +1273,7 @@ static vpu_reg *reg_init(struct vpu_subdev_data *data,
 				} else if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
 					if (reg_probe_width(reg) > 3200) {
 						/*raise frequency for 4k avc.*/
-						reg->freq = VPU_FREQ_500M;
+						reg->freq = VPU_FREQ_600M;
 					}
 				} else {
 					if (reg_check_interlace(reg)) {
@@ -2212,6 +2212,9 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 		rockchip_iovmm_set_fault_handler(dev, vcodec_sysmmu_fault_hdl);
 	}
 #endif
+	get_hw_info(data);
+	pservice->auto_freq = true;
+
 	vcodec_exit_mode(data);
 	/* create device node */
 	ret = alloc_chrdev_region(&data->dev_t, 0, 1, dev_name(dev));
@@ -2242,8 +2245,6 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 
 	data->child_dev = device_create(data->cls, dev,
 		data->dev_t, NULL, dev_name(dev));
-
-	get_hw_info(data);
 
 	platform_set_drvdata(pdev, data);
 
