@@ -22,19 +22,6 @@
 #include <drv_types.h>
 #include <rtl8188e_hal.h>
 
-static s32  translate2dbm(u8 signal_strength_idx)
-{
-	s32	signal_power; // in dBm.
-
-
-	// Translate to dBm (x=0.5y-95).
-	signal_power = (s32)((signal_strength_idx + 1) >> 1);
-	signal_power -= 95;
-
-	return signal_power;
-}
-
-
 static void process_rssi(_adapter *padapter,union recv_frame *prframe)
 {
 	u32	last_rssi, tmp_val;
@@ -77,10 +64,10 @@ static void process_rssi(_adapter *padapter,union recv_frame *prframe)
 		
 		if(padapter->recvpriv.is_signal_dbg) {
 			padapter->recvpriv.signal_strength= padapter->recvpriv.signal_strength_dbg;
-			padapter->recvpriv.rssi=(s8)translate2dbm((u8)padapter->recvpriv.signal_strength_dbg);
+			padapter->recvpriv.rssi=(s8)translate_percentage_to_dbm(padapter->recvpriv.signal_strength_dbg);
 		} else {
 			padapter->recvpriv.signal_strength= tmp_val;
-			padapter->recvpriv.rssi=(s8)translate2dbm((u8)tmp_val);
+			padapter->recvpriv.rssi=(s8)translate_percentage_to_dbm(tmp_val);
 		}
 
 		RT_TRACE(_module_rtl871x_recv_c_,_drv_info_,("UI RSSI = %d, ui_rssi.TotalVal = %d, ui_rssi.TotalNum = %d\n", tmp_val, padapter->recvpriv.signal_strength_data.total_val,padapter->recvpriv.signal_strength_data.total_num));
@@ -276,7 +263,7 @@ void update_recvframe_phyinfo_88e(
 	ODM_PACKET_INFO_T	pkt_info;
 	u8 *sa = NULL;
 	struct sta_priv *pstapriv;
-	struct sta_info *psta;
+	struct sta_info *psta = NULL;
 	//_irqL		irqL;
 	
 	pkt_info.bPacketMatchBSSID =_FALSE;
@@ -315,15 +302,23 @@ void update_recvframe_phyinfo_88e(
 	}	
 */	
 	sa = get_ta(wlanhdr);	
-	
-	pstapriv = &padapter->stapriv;
+
 	pkt_info.StationID = 0xFF;
-	psta = rtw_get_stainfo(pstapriv, sa);
-	if (psta)
-	{
-		pkt_info.StationID = psta->mac_id;		
-		//DBG_8192C("%s ==> StationID(%d)\n",__FUNCTION__,pkt_info.StationID);
-	}			
+
+	if (_rtw_memcmp(myid(&padapter->eeprompriv), sa, ETH_ALEN) == _TRUE) {
+		static u32 start_time = 0;
+
+		if ((start_time == 0) || (rtw_get_passing_time_ms(start_time) > 5000)) {
+			DBG_871X_LEVEL(_drv_always_, "Warning!!! %s: Confilc mac addr!!\n", __func__);
+			start_time = rtw_get_current_time();
+		}
+	} else {
+		pstapriv = &padapter->stapriv;
+		psta = rtw_get_stainfo(pstapriv, sa);
+		if (psta)
+			pkt_info.StationID = psta->mac_id;
+	}
+
 	pkt_info.DataRate = pattrib->data_rate;	
 	//rtl8188e_query_rx_phy_status(precvframe, pphy_status);
 

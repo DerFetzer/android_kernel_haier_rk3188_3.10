@@ -1,3 +1,11 @@
+/* Copyright (c) 2014 - 2015 Espressif System.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *
+ */
 #ifdef ESP_PRE_MEM
 
 #include <linux/slab.h>
@@ -85,7 +93,7 @@ void esp_pre_sip_skb_show(void)
 EXPORT_SYMBOL(esp_pre_sip_skb_show);
 #endif
 
-struct sk_buff *esp_get_sip_skb(int size)
+struct sk_buff *esp_get_sip_skb(int size, gfp_t type)
 {
 	int i;
 	int retry = 100;
@@ -120,7 +128,11 @@ struct sk_buff *esp_get_sip_skb(int size)
 			break;
 		}
 
-		mdelay(1);         /* maybe in multi core cpu */
+		if (type == GFP_KERNEL)
+			msleep(1);
+		else
+			mdelay(1);
+
 	} while (--retry > 0);
 
 	if (retry <= 0)
@@ -137,7 +149,7 @@ void esp_put_sip_skb(struct sk_buff **skb)
 	for (i = 0; i < SIP_SKB_ARR_NUM; i++) {
 		if (gl_sip_skb_arr[i].skb_p == *skb) {
 			gl_sip_skb_arr[i].skb_p->data = gl_sip_skb_arr[i].skb_p->head;
-			gl_sip_skb_arr[i].skb_p->tail = gl_sip_skb_arr[i].skb_p->head;
+			//gl_sip_skb_arr[i].skb_p->tail = gl_sip_skb_arr[i].skb_p->head;
 			gl_sip_skb_arr[i].skb_p->data_len = 0;
 			gl_sip_skb_arr[i].skb_p->len = 0;
 			skb_trim(gl_sip_skb_arr[i].skb_p, 0);
