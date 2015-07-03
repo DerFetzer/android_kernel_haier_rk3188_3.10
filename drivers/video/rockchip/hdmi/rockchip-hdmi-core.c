@@ -106,13 +106,19 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 	}
 	if (hdmi->vic & HDMI_VIDEO_YUV420)
 		video.color_output = HDMI_COLOR_YCBCR420;
+	//video.color_input = HDMI_COLOR_RGB_0_255;
 	pr_info("hdmi output corlor mode is %d\n", video.color_output);
 	if (hdmi->vic & HDMI_VIDEO_YUV420)
 		video.color_input = HDMI_COLOR_YCBCR420;
 	else if (hdmi->edid.sink_hdmi == 0)
 		video.color_input = HDMI_COLOR_RGB_0_255;
-	else
+	else if (hdmi->lcdc->output_color == COLOR_YCBCR){
 		video.color_input = HDMI_COLOR_YCBCR444;
+	}
+	else if (hdmi->lcdc->output_color == COLOR_RGB){
+		video.color_output = HDMI_COLOR_RGB_16_235;
+	 	video.color_input = HDMI_COLOR_RGB_0_255;
+	}
 	// This causes color trouble on HDMI display.
 	// video.color_input = HDMI_COLOR_RGB_0_255;
 	if (hdmi->property->feature & SUPPORT_YCBCR_INPUT) {
