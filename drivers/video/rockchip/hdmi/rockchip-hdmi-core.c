@@ -2,6 +2,7 @@
 #include "rockchip-hdmi.h"
 #include "rockchip-hdmi-cec.h"
 
+static int init_flag = 1;
 struct hdmi_delayed_work {
 	struct delayed_work work;
 	struct hdmi *hdmi;
@@ -213,6 +214,7 @@ out:
 
 static void hdmi_wq_insert(struct hdmi *hdmi)
 {
+	init_flag = 0;
 	DBG("%s", __func__);
 	if (hdmi->ops->insert)
 		hdmi->ops->insert(hdmi);
@@ -297,8 +299,10 @@ static void hdmi_work_queue(struct work_struct *work)
 			if (!hdmi->sleep) {
 				if (hdmi->ops->enable)
 					hdmi->ops->enable(hdmi);
-				if (hdmi->hotplug == HDMI_HPD_ACTIVED)
+				if (hdmi->hotplug == HDMI_HPD_ACTIVED){
 					hdmi_wq_insert(hdmi);
+					init_flag = 0;
+				}
 			}
 		}
 		break;
@@ -310,13 +314,18 @@ static void hdmi_work_queue(struct work_struct *work)
 		}
 		break;
 	case HDMI_DISABLE_CTL:
+		if (init_flag != 0){
+			init_flag = 0;
+			break;
+		}
+
 		if (hdmi->enable) {
-		//	if (!hdmi->sleep) {
+			if (!hdmi->sleep) {
 		//		if (hdmi->ops->disable)
-		//			hdmi->ops->disable(hdmi);
-		//		hdmi_wq_remove(hdmi);
-		//	}
-		//	hdmi->enable = 0;
+		//		hdmi->ops->disable(hdmi);
+				hdmi_wq_remove(hdmi);
+			}
+			hdmi->enable = 0;
 		}
 		break;
 	case HDMI_SUSPEND_CTL:
