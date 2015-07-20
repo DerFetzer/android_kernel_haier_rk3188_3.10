@@ -111,7 +111,7 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 	if (hdmi->vic & HDMI_VIDEO_YUV420)
 		video.color_input = HDMI_COLOR_YCBCR420;
 	else if (hdmi->edid.sink_hdmi == 0)
-		video.color_input = HDMI_COLOR_RGB_0_255;
+		video.color_input = HDMI_COLOR_YCBCR444;
 	else if (hdmi->lcdc->output_color == COLOR_YCBCR){
 		video.color_input = HDMI_COLOR_YCBCR444;
 	}
