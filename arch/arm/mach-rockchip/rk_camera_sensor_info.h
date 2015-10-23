@@ -13,6 +13,7 @@
 #define RK29_CAM_SENSOR_OV3660 ov3660
 #define RK29_CAM_SENSOR_OV5640 ov5640
 #define RK29_CAM_SENSOR_OV5642 ov5642
+#define RK29_CAM_SENSOR_OV5647 ov5647
 #define RK29_CAM_SENSOR_S5K6AA s5k6aa
 #define RK29_CAM_SENSOR_MT9D112 mt9d112
 #define RK29_CAM_SENSOR_MT9D113 mt9d113
@@ -47,6 +48,7 @@
 #define RK29_CAM_ISP_ICATCH7002_OV5693  icatchov5693
 #define RK29_CAM_ISP_ICATCH7002_OV8825  icatchov8825   //zyt
 #define RK29_CAM_ISP_ICATCH7002_OV2720  icatchov2720   //zyt
+#define RK29_CAM_SENSOR_S5K4EC  s5k4ec
 
 #define RK29_CAM_SENSOR_NAME_OV7675 "ov7675"
 #define RK29_CAM_SENSOR_NAME_OV9650 "ov9650"
@@ -58,6 +60,7 @@
 #define RK29_CAM_SENSOR_NAME_OV3660 "ov3660"
 #define RK29_CAM_SENSOR_NAME_OV5640 "ov5640"
 #define RK29_CAM_SENSOR_NAME_OV5642 "ov5642"
+#define RK29_CAM_SENSOR_NAME_OV5647 "ov5647"
 #define RK29_CAM_SENSOR_NAME_S5K6AA "s5k6aa"
 #define RK29_CAM_SENSOR_NAME_MT9D112 "mt9d112"
 #define RK29_CAM_SENSOR_NAME_MT9D113 "mt9d113"
@@ -88,6 +91,7 @@
 #define RK29_CAM_ISP_NAME_ICATCH7002_OV5693 "icatchov5693"
 #define RK29_CAM_ISP_NAME_ICATCH7002_OV8825 "icatchov8825" //zyt
 #define RK29_CAM_ISP_NAME_ICATCH7002_OV2720 "icatchov2720" //zyt
+#define RK29_CAM_SENSOR_NAME_S5K4EC  "s5k4ec"
 
 //Sensor full resolution define
 #define ov7675_FULL_RESOLUTION     0x30000            // 0.3 megapixel
@@ -107,6 +111,9 @@
 #else	
     #define ov5642_FULL_RESOLUTION     0x500000           // 5 megapixel
 #endif
+#define s5k4ec_FULL_RESOLUTION          0x500000
+#define ov5647_FULL_RESOLUTION     0x500000           // 5 megapixel
+
 #define s5k6aa_FULL_RESOLUTION     0x130000           // 1.3 megapixel
 #define mt9d112_FULL_RESOLUTION    0x200000           // 2 megapixel
 #define mt9d113_FULL_RESOLUTION    0x200000           // 2 megapixel
@@ -170,9 +177,11 @@
 #define ov3660_I2C_ADDR             0x78
 #define ov5640_I2C_ADDR             0x78
 #define ov5642_I2C_ADDR             0x78
+#define ov5647_I2C_ADDR             0x6c
 
 #define s5k6aa_I2C_ADDR             0x78           //0x5a
 #define s5k5ca_I2C_ADDR             0x78           //0x5a
+#define s5k4ec_I2C_ADDR             0x5a ////0x5A//0x7A//0x78//0x5A//0xAC (0x78) //5a,78 //6c
 
 #define mt9d112_I2C_ADDR             0x78
 #define mt9d113_I2C_ADDR             0x78
@@ -230,9 +239,11 @@
 #define ov3660_PWRDN_ACTIVE             0x01
 #define ov5640_PWRDN_ACTIVE             0x01
 #define ov5642_PWRDN_ACTIVE             0x01
+#define ov5647_PWRDN_ACTIVE             0x01
 
 #define s5k6aa_PWRDN_ACTIVE             0x00           
 #define s5k5ca_PWRDN_ACTIVE             0x00           
+#define s5k4ec_PWRDN_ACTIVE             0x00
 
 #define mt9d112_PWRDN_ACTIVE             0x01
 #define mt9d113_PWRDN_ACTIVE             0x01
@@ -302,6 +313,7 @@
 #define ov3660_PWRSEQ                   sensor_PWRSEQ_DEFAULT
 #define ov5640_PWRSEQ                   sensor_PWRSEQ_DEFAULT
 #define ov5642_PWRSEQ                   sensor_PWRSEQ_DEFAULT
+#define ov5647_PWRSEQ                   sensor_PWRSEQ_DEFAULT
 
 #define s5k6aa_PWRSEQ                   sensor_PWRSEQ_DEFAULT         
 #define s5k5ca_PWRSEQ                   sensor_PWRSEQ_DEFAULT          
@@ -359,6 +371,10 @@
 #define icatchmi1040_PWRSEQ               (SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_PWR,0)|\
                                     SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_HWRST,2)|\
                                     SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_CLKIN,1))
+
+#define s5k4ec_PWRSEQ_DEFAULT      (SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_PWR,2)|\
+                                    SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_PWRDN,1)|\
+                                    SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_CLKIN,0))
 
 #define end_PWRSEQ                      0xffffffff
                                           

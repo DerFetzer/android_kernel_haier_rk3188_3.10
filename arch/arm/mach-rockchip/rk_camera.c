@@ -15,14 +15,19 @@
 #include <linux/module.h>
 #include <linux/regulator/consumer.h>
 /**********yzm***********/
+#include <linux/gpio.h>
 
 //#define PMEM_CAM_NECESSARY	 0x00000000    /*yzm*/
 
 static int camio_version = KERNEL_VERSION(0,1,9);/*yzm camio_version*/ 
 module_param(camio_version, int, S_IRUGO);
+extern int s5k4ec_io;
 
+static int rst = 0; 
 static int camera_debug = 0;/*yzm*/ 
 module_param(camera_debug, int, S_IRUGO|S_IWUSR);    
+#define GPIO_LOW 0
+#define GPIO_HIGH 1
 
 #undef  CAMMODULE_NAME
 #define CAMMODULE_NAME   "rk_cam_io"
@@ -48,6 +53,7 @@ static int rk_dts_cif_probe(struct platform_device *pdev);
 static int rk_dts_cif_remove(struct platform_device *pdev);
 
 static int rk_sensor_powerdown(struct device *dev, int on);
+
 
 static struct rkcamera_platform_data *new_camera_head;	
 
@@ -147,6 +153,7 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 {
 	struct device_node *np, *cp;
 	int sensor_num = 0,err;
+	int rst_flags;	
 	struct device *dev = &pdev->dev;
 	struct rkcamera_platform_data *new_camera_list;
 
@@ -247,7 +254,25 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		if (of_property_read_u32(cp, "orientation", &orientation)) {
 			printk("%s:Get %s rockchip,orientation failed!\n",__func__, cp->name);				
 		}
+		printk("s5k4ec_io==%d\n",s5k4ec_io);
+		if(s5k4ec_io == 1)
+		{
+ 			rst = of_get_named_gpio_flags(cp, "tchip,rst", 0, &rst_flags);
+              		printk("the gpiorst1 is %d\n",rst);
+    			if(!gpio_is_valid(rst)){
+                 		printk("rst isn't validi1\n");
+             	 	}
+
+        		if(gpio_request(rst,"tchip,rst")!=0){
+                     		printk("rst isn't valid2\n");
+                      		gpio_free(rst);
+              		}
+              		printk("the gpiorst2 is %d\n",rst);
+                	gpio_direction_output(rst,GPIO_LOW);
+			s5k4ec_io = 2;
+		}
 		
+
 		strcpy(new_camera->dev.i2c_cam_info.type, name);
 		new_camera->dev.i2c_cam_info.addr = i2c_add>>1;
 		new_camera->dev.desc_info.host_desc.bus_id = RK29_CAM_PLATFORM_DEV_ID+cif_chl;/*yzm*/
@@ -400,21 +425,6 @@ static int sensor_power_default_cb (struct rk29camera_gpio_res *res, int on)
 	
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()\n", __FILE__, __LINE__,__FUNCTION__);
 
-	if(camera_power_pmu_name1 != NULL)	{
-		ldo_28 = regulator_get(NULL, camera_power_pmu_name1);	// vcc28_cif
-        if (on) {
-			regulator_set_voltage(ldo_28, power_pmu_voltage1, power_pmu_voltage1);
-			ret = regulator_enable(ldo_28);
-			//printk("%s set ldo7 vcc28_cif=%dmV end\n", __func__, regulator_get_voltage(ldo_28));
-			regulator_put(ldo_28);
-			
-			msleep(10);
-		} else {
-			while(regulator_is_enabled(ldo_28)>0)	
-				regulator_disable(ldo_28);
-			regulator_put(ldo_28);
-		}		
-	}
 	
 	if(camera_power_pmu_name2 != NULL)	{		
 		ldo_18 = regulator_get(NULL, camera_power_pmu_name2);	// vcc18_cif
@@ -432,7 +442,28 @@ static int sensor_power_default_cb (struct rk29camera_gpio_res *res, int on)
 			regulator_put(ldo_18);
 		}		
 	}
+	mdelay(50);
 	
+	if(camera_power_pmu_name1 != NULL)	{
+		ldo_28 = regulator_get(NULL, camera_power_pmu_name1);	// vcc28_cif
+        if (on) {
+			regulator_set_voltage(ldo_28, power_pmu_voltage1, power_pmu_voltage1);
+			ret = regulator_enable(ldo_28);
+			//printk("%s set ldo7 vcc28_cif=%dmV end\n", __func__, regulator_get_voltage(ldo_28));
+			regulator_put(ldo_28);
+			
+			msleep(10);
+		} else {
+			while(regulator_is_enabled(ldo_28)>0)	
+				regulator_disable(ldo_28);
+			regulator_put(ldo_28);
+		}		
+	}
+	msleep(10);
+	//gpio_direction_output(107,0);
+	if(s5k4ec_io == 2 )
+                gpio_direction_output(rst,GPIO_LOW);
+		
     if (camera_power != INVALID_GPIO)  {
 		if (camera_io_init & RK29_CAM_POWERACTIVE_MASK) {
             if (on) {
@@ -498,7 +529,7 @@ static int sensor_powerdown_default_cb (struct rk29camera_gpio_res *res, int on)
 	const char *powerdown_pmu_name = dev->powerdown_pmu_name;
 
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()\n", __FILE__, __LINE__,__FUNCTION__);
-
+	
 	if(powerdown_pmu_name != NULL)	{		
 		powerdown_pmu = regulator_get(NULL, powerdown_pmu_name);
 		if (on) {
@@ -982,6 +1013,13 @@ static int rk_sensor_ioctrl(struct device *dev,enum rk29camera_ioctrl_cmd cmd, i
 
 		case Cam_PowerDown:
 		{
+
+	//	gpio_direction_output(107,1);
+		if(s5k4ec_io == 2)
+                gpio_direction_output(rst,GPIO_HIGH);
+		msleep(100);
+		printk("Cam_Powerdowm\n");
+
 			if (sensor_ioctl_cb.sensor_powerdown_cb) {
                 ret = sensor_ioctl_cb.sensor_powerdown_cb(res, on);
 			} else {

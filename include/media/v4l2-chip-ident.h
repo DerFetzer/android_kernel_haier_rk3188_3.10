@@ -93,6 +93,7 @@ enum {
 	V4L2_IDENT_S5K66A = 310,							/* ddl@rock-chips.com : s5k66a support */
 	V4L2_IDENT_S5K5CA = 311,							/* ddl@rock-chips.com : s5k5ca support */
 
+	V4L2_IDENT_S5K4EC = 312,							/* ddl@rock-chips.com : s5k5ca support */
 	V4L2_IDENT_MTK9335ISP = 320,							/* ddl@rock-chips.com : MTK9335ISP support */
 	V4L2_IDENT_ICATCH7002_MI1040 = 321,
 	V4L2_IDENT_ICATCH7002_OV5693 =322,
