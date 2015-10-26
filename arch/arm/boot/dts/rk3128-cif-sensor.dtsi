@@ -19,12 +19,9 @@
                            rockchip,powerdown = <&gpio3 GPIO_D7 GPIO_ACTIVE_HIGH>;
                            pwdn_active = <0>;
                            tchip,rst = <&gpio3 GPIO_B3 GPIO_ACTIVE_LOW>;
-                           //rockchip,power = <&gpio3 GPIO_D7 GPIO_ACTIVE_HIGH>;
-                           //pwr_active = <PWR_ACTIVE_HIGH>;
                            #rockchip,reset = <>;
                            #rst_active = <>;
                            flash_attach = <1>;
-                           rockchip,flash = <&gpio2 GPIO_C6 GPIO_ACTIVE_HIGH>;
                            flash_active = <GPIO_ACTIVE_LOW>;
                            #rockchip,af = <>;
                            mir = <0>;
