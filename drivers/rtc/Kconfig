@@ -432,6 +432,7 @@ config  RK808_RTC
 config  RK818_RTC
 	tristate "rk818 rtc for rk"
 	depends on MFD_RK818
+	default n
 	help
 		enable rk818 rtc for system
 
