@@ -30,6 +30,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regmap.h>
 #include <linux/syscore_ops.h>
+#include <linux/rockchip/common.h>
 
 
 #if 0
@@ -1037,7 +1038,10 @@ static struct rk818_board *rk818_parse_dt(struct rk818 *rk818)
 		gpio_direction_output(cpu_det_gpio,1);
 		printk("cpu_det_gpio up\n");
 	}
-	power_hold_gpio = of_get_named_gpio(rk818_pmic_np,"power_hold_gpio",0);
+	if(FIREPRIME_VERSION_V01 == fireprime_get_version())
+		power_hold_gpio = of_get_named_gpio(rk818_pmic_np, "power_hold_gpio-v01", 0);
+	else
+		power_hold_gpio = of_get_named_gpio(rk818_pmic_np,"power_hold_gpio",0);
 	if (!gpio_is_valid(power_hold_gpio)) {
 		printk("invalid gpio: %d\n",  power_hold_gpio);
 		return NULL;

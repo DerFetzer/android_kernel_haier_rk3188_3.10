@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/err.h>
+#include <linux/rockchip/common.h>
 
 struct gpio_led_data {
 	struct led_classdev cdev;
@@ -188,8 +189,13 @@ static struct gpio_leds_priv *gpio_leds_create_of(struct platform_device *pdev)
 		struct gpio_led led = {};
 		enum of_gpio_flags flags;
 		const char *state;
+		int gpio = -1;
 
-		led.gpio = of_get_gpio_flags(child, 0, &flags);
+		if(FIREPRIME_VERSION_V01 == fireprime_get_version())
+			gpio = of_get_named_gpio_flags(child, "gpios-v01", 0, &flags);
+		if (!gpio_is_valid(gpio)) 
+			gpio = of_get_gpio_flags(child, 0, &flags);
+		led.gpio = gpio;
 		led.active_low = flags & OF_GPIO_ACTIVE_LOW;
 		led.name = of_get_property(child, "label", NULL) ? : child->name;
 		led.default_trigger =

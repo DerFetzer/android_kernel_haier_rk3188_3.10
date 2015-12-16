@@ -78,7 +78,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	//poll-hw-reset
-	status = "disabled";
+	status = "okay";
 };
 
 &sdmmc {
@@ -443,8 +443,8 @@
 &rk818 {
 	gpios =<&gpio3 GPIO_C6 GPIO_ACTIVE_HIGH>,<&gpio3 GPIO_C1 GPIO_ACTIVE_LOW>;	//PMIC_INT, PMIC_SLEEP
 	cpu_det_gpio = <&gpio0 GPIO_D1 GPIO_ACTIVE_HIGH>;
-	//power_hold_gpio = <&gpio0 GPIO_D6 GPIO_ACTIVE_HIGH>;
 	power_hold_gpio = <&gpio2 GPIO_A5 GPIO_ACTIVE_HIGH>;
+	power_hold_gpio-v01 = <&gpio2 GPIO_A0 GPIO_ACTIVE_HIGH>;
 	rk818,system-power-controller;
 	rk818,support_dc_chg = <1>;/*1: dc chg; 0:usb chg*/
 

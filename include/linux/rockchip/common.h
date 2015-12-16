@@ -67,6 +67,13 @@ enum rockchip_pm_policy {
 	ROCKCHIP_PM_NR_POLICYS,
 };
 
+enum fireprime_version{
+	FIREPRIME_VERSION_V00 = 0x00,
+	FIREPRIME_VERSION_V01,
+};
+
+enum fireprime_version fireprime_get_version(void);
+
 enum rockchip_pm_policy rockchip_pm_get_policy(void);
 int rockchip_pm_set_policy(enum rockchip_pm_policy policy);
 int rockchip_pm_policy_register_notifier(struct notifier_block *nb);

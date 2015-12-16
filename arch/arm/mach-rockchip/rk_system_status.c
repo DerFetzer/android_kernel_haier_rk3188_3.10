@@ -1,11 +1,15 @@
 #include <linux/mutex.h>
 #include <linux/notifier.h>
+#include <linux/rockchip/common.h>
+#include <linux/rockchip/iomap.h>
 
 static unsigned long system_status = 0;
 static unsigned long ref_count[32] = {0};
 static DEFINE_MUTEX(system_status_mutex);
 
 static BLOCKING_NOTIFIER_HEAD(rk_system_status_chain_head);
+
+static int fire_ver = -1;
 
 int rockchip_register_system_status_notifier(struct notifier_block *nb)
 {
@@ -87,4 +91,22 @@ unsigned long rockchip_get_system_status(void)
 	mutex_unlock(&system_status_mutex);
 
 	return ret;
+}
+
+
+enum fireprime_version fireprime_get_version(void)
+{
+	u32 reg_val;
+
+	if(fire_ver < 0)
+	{
+		reg_val = *(((u32 *)RK_GRF_VIRT) + 0x1cc/4);
+		if((3 == ((reg_val >> 13) & 0x7)))
+			fire_ver = FIREPRIME_VERSION_V01;
+		else
+			fire_ver = FIREPRIME_VERSION_V00;
+		printk("FirePrime hardware version: V%02x\n", fire_ver);
+	}
+
+	return fire_ver;
 }

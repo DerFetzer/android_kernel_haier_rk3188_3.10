@@ -1874,11 +1874,14 @@ static int of_get_dvfs_table(struct device_node *dev_node,
 			     struct cpufreq_frequency_table **dvfs_table)
 {
 	struct cpufreq_frequency_table *tmp_dvfs_table = NULL;
-	const struct property *prop;
+	const struct property *prop = NULL;
 	const __be32 *val;
 	int nr, i;
 
-	prop = of_find_property(dev_node, "operating-points", NULL);
+	if(FIREPRIME_VERSION_V01 == fireprime_get_version())
+		prop = of_find_property(dev_node, "operating-points-v01", NULL);
+	if (!prop)
+		prop = of_find_property(dev_node, "operating-points", NULL);
 	if (!prop)
 		return -EINVAL;
 	if (!prop->value)
