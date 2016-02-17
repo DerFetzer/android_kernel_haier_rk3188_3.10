@@ -3680,8 +3680,8 @@ static struct rk_sensor_reg sensor_init_data[] ={
 	{0x0f12, 0x0535},//29A//#REG_0TC_PCFG_usMaxFrTimeMsecMult10//                                         
 	{0x0f12, 0x014d},//14D//#REG_0TC_PCFG_usMinFrTimeMsecMult10//                                         
 	{0x002a, 0x02d0},
-	{0x0f12, 0x0000},
-	{0x0f12, 0x0000},
+	{0x0f12, 0x0003},
+	{0x0f12, 0x0003},
 	{0x0f12, 0x0000},
 	
 	{0x002a, 0x0396},//CGFG

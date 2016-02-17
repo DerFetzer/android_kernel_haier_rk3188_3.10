@@ -27,7 +27,7 @@
                            mir = <0>;
                            resolution = <0x500000>;
                            powerup_sequence = <s5k4ec_PWRSEQ_DEFAULT>;
-                           orientation = <180>;
+                           orientation = <0>;
                            i2c_add = <s5k4ec_I2C_ADDR>;
                            i2c_rata = <20000>;
                            i2c_chl = <0>;
