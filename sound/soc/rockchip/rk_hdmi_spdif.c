@@ -1,15 +1,16 @@
-/*$_FOR_ROCKCHIP_RBOX_$*/
-/*$_rbox_$_modify_$_huangzhibao for spdif output*/
-
 /*
- * smdk_spdif.c  --  S/PDIF audio for SMDK
+ * rk_hdmi_spdif.c  -- hdmi spdif for rockchip
  *
- * Copyright 2010 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2015 Fuzhou Rockchip Electronics Co., Ltd
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of the
- * License, or (at your option) any later version.
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 
@@ -26,48 +27,31 @@
 #include "card_info.h"
 #include "rk_pcm.h"
 
-#if 0
-#define RK_SPDIF_DBG(x...) pr_info("rk_hdmi_spdif:"x)
-#else
-#define RK_SPDIF_DBG(x...) do { } while (0)
-#endif
-
 static int rk_hw_params(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	unsigned long pll_out, rclk_rate;
+	unsigned long sclk;
 	int ret, ratio;
 
-	RK_SPDIF_DBG("spdif:Entered %s\n", __func__);
-
+	/* bmc: 2*32*fs*2 = 128fs */
+	ratio = 128;
 	switch (params_rate(params)) {
 	case 44100:
-		pll_out = 11289600;
-		break;
 	case 32000:
-		pll_out = 8192000;
-		break;
 	case 48000:
-		pll_out = 12288000;
-		break;
 	case 96000:
-		pll_out = 24576000;
+	case 192000:
+		sclk = params_rate(params) * ratio;
 		break;
 	default:
 		pr_err("rk_spdif: params not support\n");
 		return -EINVAL;
 	}
 
-	ratio = 256;
-	rclk_rate = params_rate(params) * ratio;
-
-	/* Set audio source clock rates */
 	ret = snd_soc_dai_set_sysclk(cpu_dai, 0,
-				     rclk_rate, SND_SOC_CLOCK_IN);
-	if (ret < 0)
-		return ret;
+				     sclk, SND_SOC_CLOCK_IN);
 
 	return ret;
 }
@@ -123,25 +107,24 @@ static int rockchip_hdmi_spdif_audio_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id rockchip_hdmi_spdif_of_match[] = {
-	{ .compatible = "rockchip-hdmi-spdif"},
+	{ .compatible = "rockchip-hdmi-spdif", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, rockchip_hdmi_spdif_of_match);
 #endif /* CONFIG_OF */
 
 static struct platform_driver rockchip_hdmi_spdif_audio_driver = {
-	.driver         = {
-		.name   = "rockchip-hdmi-spdif",
-		.owner  = THIS_MODULE,
+	.driver = {
+		.name = "rockchip-hdmi-spdif",
 		.pm = &snd_soc_pm_ops,
 		.of_match_table = of_match_ptr(rockchip_hdmi_spdif_of_match),
 	},
-	.probe          = rockchip_hdmi_spdif_audio_probe,
-	.remove         = rockchip_hdmi_spdif_audio_remove,
+	.probe = rockchip_hdmi_spdif_audio_probe,
+	.remove = rockchip_hdmi_spdif_audio_remove,
 };
 
 module_platform_driver(rockchip_hdmi_spdif_audio_driver);
 
-MODULE_AUTHOR("hzb, <hzb@rock-chips.com>");
-MODULE_DESCRIPTION("ALSA SoC RK+S/PDIF");
+MODULE_AUTHOR("hzb <hzb@rock-chips.com>");
+MODULE_DESCRIPTION("Rockchip HDMI Spdif Card");
 MODULE_LICENSE("GPL");

@@ -257,7 +257,7 @@ static ssize_t force_ro_show(struct device *dev, struct device_attribute *attr,
 	int ret;
 	struct mmc_blk_data *md = mmc_blk_get(dev_to_disk(dev));
 
-	ret = snprintf(buf, PAGE_SIZE, "%d",
+	ret = snprintf(buf, PAGE_SIZE, "%d\n",
 		       get_disk_ro(dev_to_disk(dev)) ^
 		       md->read_only);
 	mmc_blk_put(md);
@@ -952,6 +952,18 @@ static inline void mmc_blk_reset_success(struct mmc_blk_data *md, int type)
 	md->reset_done &= ~type;
 }
 
+int mmc_access_rpmb(struct mmc_queue *mq)
+{
+	struct mmc_blk_data *md = mq->data;
+	/*
+	 * If this is a RPMB partition access, return ture
+	 */
+	if (md && md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
+		return true;
+
+	return false;
+}
+
 static int mmc_blk_issue_discard_rq(struct mmc_queue *mq, struct request *req)
 {
 	struct mmc_blk_data *md = mq->data;
@@ -1115,6 +1127,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 						    mmc_active);
 	struct mmc_blk_request *brq = &mq_mrq->brq;
 	struct request *req = mq_mrq->req;
+	int need_retune = card->host->need_retune;
 	int ecc_err = 0, gen_err = 0;
 
 	/*
@@ -1212,6 +1225,14 @@ static int mmc_blk_err_check(struct mmc_card *card,
 	}
 
 	if (brq->data.error) {
+		pr_err("need_retune:%d,brq->retune_retry_done:%d.\n",need_retune,brq->retune_retry_done);
+		if (need_retune && !brq->retune_retry_done) {
+			pr_err("%s: retrying because a re-tune was needed\n",
+			       req->rq_disk->disk_name);
+			brq->retune_retry_done = 1;
+			return MMC_BLK_RETRY;
+		}
+
 		pr_err("%s: error %d transferring data, sector %u, nr %u, cmd response %#x, card status %#x\n",
 		       req->rq_disk->disk_name, brq->data.error,
 		       (unsigned)blk_rq_pos(req),
@@ -1383,6 +1404,9 @@ static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
 		brq->cmd.opcode = writecmd;
 		brq->data.flags |= MMC_DATA_WRITE;
 	}
+
+	if (req->cmd_flags & REQ_KERNEL)
+		brq->data.flags |= MMC_DATA_DIRECT;
 
 	if (do_rel_wr)
 		mmc_apply_rel_rw(brq, card, req);
@@ -1770,7 +1794,7 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 	struct mmc_blk_data *md = mq->data;
 	struct mmc_card *card = md->queue.card;
 	struct mmc_blk_request *brq = &mq->mqrq_cur->brq;
-	int ret = 1, disable_multi = 0, retry = 0, type;
+	int ret = 1, disable_multi = 0, retry = 0, retune_retry_done = 0, type;
 	enum mmc_blk_status status;
 	struct mmc_queue_req *mq_rq;
 	struct request *req = rqc;
@@ -1850,10 +1874,13 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 			break;
 		case MMC_BLK_CMD_ERR:
 			ret = mmc_blk_cmd_err(md, card, brq, req, ret);
-			if (!mmc_blk_reset(md, card->host, type))
-				break;
-			goto cmd_abort;
+			if (mmc_blk_reset(md, card->host, type))
+				goto cmd_abort;
+			if (!ret)
+				goto start_new_req;
+			break;
 		case MMC_BLK_RETRY:
+			retune_retry_done = brq->retune_retry_done;
 			if (retry++ < 5)
 				break;
 			/* Fall through */
@@ -1916,6 +1943,7 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 				mmc_start_req(card->host,
 						&mq_rq->mmc_active, NULL);
 			}
+		mq_rq->brq.retune_retry_done = retune_retry_done;
 		}
 	} while (ret);
 
@@ -2419,12 +2447,12 @@ static int mmc_blk_probe(struct mmc_card *card)
 	mmc_set_bus_resume_policy(card->host, 1);
 #endif
 #if defined(CONFIG_MMC_DW_ROCKCHIP)
-    if(card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC){
-        this_card = card;
-        md->disk->emmc_disk = 1;
-    }else {
-        md->disk->emmc_disk = 0;
-    }
+	if (card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC) {
+		this_card = card;
+		md->disk->emmc_disk = 1;
+	} else {
+		md->disk->emmc_disk = 0;
+	}
 #endif
 	if (mmc_add_disk(md))
 		goto out;
@@ -2457,10 +2485,10 @@ static int mmc_blk_probe(struct mmc_card *card)
 static void mmc_blk_remove(struct mmc_card *card)
 {
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
-	
+
 #if defined(CONFIG_MMC_DW_ROCKCHIP)
-    if(card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC)
-        this_card = NULL;
+	if (card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC)
+		this_card = NULL;
 #endif
 	mmc_blk_remove_parts(card, md);
 	pm_runtime_get_sync(&card->dev);

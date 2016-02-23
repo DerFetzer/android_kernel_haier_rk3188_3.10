@@ -28,7 +28,7 @@ char *bc_string[USB_BC_TYPE_MAX] = {"DISCONNECT",
 
 uoc_field_t *pBC_UOC_FIELDS;
 static void *pGRF_BASE;
-static struct mutex bc_mutex;
+DEFINE_MUTEX(bc_mutex);
 
 static enum bc_port_type usb_charger_status = USB_BC_TYPE_DISCNT;
 
@@ -184,7 +184,7 @@ enum bc_port_type usb_battery_charger_detect_inno(bool wait)
 {
 	enum bc_port_type port_type = USB_BC_TYPE_DISCNT;
 	int dcd_state = DCD_POSITIVE;
-	int timeout = 0, i = 0;
+	int timeout = 0, i = 0, filted_cpdet = 0;
 
 	/* VBUS Valid detect */
 	if (BC_GET(INNO_BC_BVALID) &&
@@ -222,8 +222,22 @@ enum bc_port_type usb_battery_charger_detect_inno(bool wait)
 		BC_SET(INNO_BC_IDMSINKEN, 1);
 		udelay(T_BC_CHGDET_VALID);
 
+		/*
+		 * Filter for Primary Detection,
+		 * double check CPDET field
+		 */
+		timeout = T_BC_CHGDET_VALID;
+		while(timeout--) {
+			/*
+			 * In rapidly hotplug case, it's more likely to
+			 * distinguish SDP as DCP/CDP because of line
+			 * bounce
+			 */
+			filted_cpdet += (BC_GET(INNO_BC_CPDET) ? 1 : -2);
+			udelay(1);
+		}
 		/* SDP and CDP/DCP distinguish */
-		if (BC_GET(INNO_BC_CPDET)) {
+		if (filted_cpdet > 0) {
 			/* Turn off VDPSRC */
 			BC_SET(INNO_BC_VDPSRCEN, 0);
 			BC_SET(INNO_BC_IDMSINKEN, 0);
@@ -348,7 +362,6 @@ enum bc_port_type usb_battery_charger_detect(bool wait)
 		return -1;
 	if (!pGRF_BASE) {
 		pGRF_BASE = get_grf_base(np);
-		mutex_init(&bc_mutex);
 	}
 
 	mutex_lock(&bc_mutex);
@@ -386,7 +399,7 @@ EXPORT_SYMBOL(dwc_otg_check_dpdm);
 static ATOMIC_NOTIFIER_HEAD(rk_bc_notifier);
 
 int rk_bc_detect_notifier_register(struct notifier_block *nb,
-					   int *type)
+				   enum bc_port_type *type)
 {
 	*type = (int)usb_battery_charger_detect(0);
 	return atomic_notifier_chain_register(&rk_bc_notifier, nb);

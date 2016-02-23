@@ -3,7 +3,7 @@
  *
  * $Copyright Open Broadcom Corporation$
  *
- * $Id: dhd_common.c 490628 2014-07-11 07:13:31Z $
+ * $Id: dhd_common.c 492215 2014-07-20 16:44:15Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -434,33 +434,33 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		break;
 
 	case IOV_GVAL(IOV_WLMSGLEVEL):
-		printk("android_msg_level=0x%x\n", android_msg_level);
-		printk("config_msg_level=0x%x\n", config_msg_level);
+		printf("android_msg_level=0x%x\n", android_msg_level);
+		printf("config_msg_level=0x%x\n", config_msg_level);
 #if defined(WL_WIRELESS_EXT)
 		int_val = (int32)iw_msg_level;
 		bcopy(&int_val, arg, val_size);
-		printk("iw_msg_level=0x%x\n", iw_msg_level);
+		printf("iw_msg_level=0x%x\n", iw_msg_level);
 #endif
 #ifdef WL_CFG80211
 		int_val = (int32)wl_dbg_level;
 		bcopy(&int_val, arg, val_size);
-		printk("cfg_msg_level=0x%x\n", wl_dbg_level);
+		printf("cfg_msg_level=0x%x\n", wl_dbg_level);
 #endif
 		break;
 
 	case IOV_SVAL(IOV_WLMSGLEVEL):
 		if (int_val & DHD_ANDROID_VAL) {
 			android_msg_level = (uint)(int_val & 0xFFFF);
-			printk("android_msg_level=0x%x\n", android_msg_level);
+			printf("android_msg_level=0x%x\n", android_msg_level);
 		}
 		if (int_val & DHD_CONFIG_VAL) {
 			config_msg_level = (uint)(int_val & 0xFFFF);
-			printk("config_msg_level=0x%x\n", config_msg_level);
+			printf("config_msg_level=0x%x\n", config_msg_level);
 		}
 #if defined(WL_WIRELESS_EXT)
 		if (int_val & DHD_IW_VAL) {
 			iw_msg_level = (uint)(int_val & 0xFFFF);
-			printk("iw_msg_level=0x%x\n", iw_msg_level);
+			printf("iw_msg_level=0x%x\n", iw_msg_level);
 		}
 #endif
 #ifdef WL_CFG80211
@@ -1852,7 +1852,7 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 		if (type != WLC_E_LINK) {
 			uint8 ifindex = (uint8)hostidx;
 			uint8 role = dhd_flow_rings_ifindex2role(dhd_pub, ifindex);
-			if (role == WLC_E_IF_ROLE_STA) {
+			if (DHD_IF_ROLE_STA(role)) {
 				dhd_flow_rings_delete(dhd_pub, ifindex);
 			} else {
 				dhd_flow_rings_delete_for_peer(dhd_pub, ifindex,
@@ -2007,7 +2007,7 @@ dhd_pktfilter_offload_enable(dhd_pub_t * dhd, char *arg, int enable, int master_
 	rc = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, buf_len, TRUE, 0);
 	rc = rc >= 0 ? 0 : rc;
 	if (rc)
-		DHD_TRACE(("%s: failed to %s pktfilter %s, retcode = %d\n",
+		DHD_ERROR(("%s: failed to %s pktfilter %s, retcode = %d\n",
 		__FUNCTION__, enable?"enable":"disable", arg, rc));
 	else
 		DHD_TRACE(("%s: successfully %s pktfilter %s\n",
@@ -2151,7 +2151,7 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 	rc = rc >= 0 ? 0 : rc;
 
 	if (rc)
-		DHD_TRACE(("%s: failed to add pktfilter %s, retcode = %d\n",
+		DHD_ERROR(("%s: failed to add pktfilter %s, retcode = %d\n",
 		__FUNCTION__, arg, rc));
 	else
 		DHD_TRACE(("%s: successfully added pktfilter %s\n",

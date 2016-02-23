@@ -4,10 +4,12 @@
  */
 #ifndef RK818_BATTERY
 #define  RK818_BATTERY
-#include <linux/time.h>
 
 #define VB_MOD_REG					0x21
-
+#define THERMAL_REG					0x22
+#define DCDC_EN_REG					0x23
+#define NT_STS_MSK_REG2				0x4f
+#define DCDC_ILMAX_REG				0x90
 #define CHRG_COMP_REG1				0x99
 #define CHRG_COMP_REG2				0x9A
 #define SUP_STS_REG					0xA0
@@ -99,13 +101,23 @@
 #define  NEW_FCC_REG1				0xE8
 #define  NEW_FCC_REG0				0xE9
 
-#define NON_ACT_TIMER_CNT_REG_SAVE 0xEA
-#define TEMP_SOC_REG				0xEB
+#define NON_ACT_TIMER_CNT_REG_SAVE		0xEA
+#define OCV_VOL_VALID_REG			0xEB
+#define REBOOT_CNT_REG				0xEC
+#define PCB_IOFFSET_REG				0xED
+#define MISC_MARK_REG				0xEE
 
-#define UBT_INIT_SOC_REG			0xEC
-#define UBT_INIT_TEMP_SOC_REG		0xED
-#define UBT_INIT_BRANCH				0xEE
-#define UBT_PWRON_SOC_REG			0xEF
+#define PLUG_IN_INT				(0)
+#define PLUG_OUT_INT				(1)
+#define CHRG_CVTLMT_INT				(6)
+
+#define CHRG_EN_MASK				(1 << 7)
+#define CHRG_EN					(1 << 7)
+#define CHRG_DIS				(0 << 7)
+
+#define OTG_EN_MASK				(1 << 7)
+#define OTG_EN					(1 << 7)
+#define OTG_DIS					(0 << 7)
 
 /* gasgauge module enable bit 0: disable  1:enabsle
 TS_CTRL_REG  0xAC*/
@@ -214,10 +226,6 @@ bit  0: disable 1: enable
 #define ILIM_2750MA					(0x0A)
 #define ILIM_3000MA					(0x0B)
 
-
-/*CHRG_CTRL_REG*/
-#define CHRG_EN						(0x01<<7)
-
 /*CHRG_VOL_SEL*/
 #define CHRG_VOL4050				(0x00<<4)
 #define CHRG_VOL4100				(0x01<<4)
@@ -245,9 +253,27 @@ bit  0: disable 1: enable
 #define FINISH_200MA				(0x02<<6)
 #define FINISH_250MA				(0x03<<6)
 
-/* CHRG_CTRL_REG2*/
-#define CHRG_TERM_ANA_SIGNAL (0 << 5)
-#define CHRG_TERM_DIG_SIGNAL (1 << 5)
+/*temp feed back degree*/
+#define TEMP_85C			(0x00 << 2)
+#define TEMP_95C			(0x01 << 2)
+#define TEMP_105C			(0x02 << 2)
+#define TEMP_115C			(0x03 << 2)
+
+
+/* CHRG_CTRL_REG3*/
+#define CHRG_TERM_ANA_SIGNAL 		(0 << 5)
+#define CHRG_TERM_DIG_SIGNAL 		(1 << 5)
+#define CHRG_TIMER_CCCV_EN  		(1 << 2)
+
+/*CHRG_CTRL_REG2*/
+#define CHG_CCCV_4HOUR			(0x00)
+#define CHG_CCCV_5HOUR			(0x01)
+#define CHG_CCCV_6HOUR			(0x02)
+#define CHG_CCCV_8HOUR			(0x03)
+#define CHG_CCCV_10HOUR			(0x04)
+#define CHG_CCCV_12HOUR			(0x05)
+#define CHG_CCCV_14HOUR			(0x06)
+#define CHG_CCCV_16HOUR			(0x07)
 
 /*GGCON*/
 #define SAMP_TIME_8MIN				(0X00<<4)
@@ -255,7 +281,10 @@ bit  0: disable 1: enable
 #define SAMP_TIME_32MIN				(0X02<<4)
 #define SAMP_TIME_48MIN				(0X03<<4)
 
-#define DRIVER_VERSION				"2.0.0"
+#define ADC_CURRENT_MODE			(1 << 1)
+#define ADC_VOLTAGE_MODE			(0 << 1)
+
+#define DRIVER_VERSION				"4.0.0"
 #define ROLEX_SPEED					(100 * 1000)
 
 #define CHARGING					0x01
@@ -296,7 +325,7 @@ struct ocv_config {
 	/* sleep_enter_current: if the current remains under
 	this threshold for [sleep_enter_samples]
 	consecutive samples. the gauge enters the SLEEP MODE*/
-	uint8_t sleep_enter_current;
+	uint16_t sleep_enter_current;
 	/*sleep_enter_samples: the number of samples that
 	satis fy asleep enter or exit condition in order
 	to actually enter of exit SLEEP mode*/
@@ -305,7 +334,7 @@ struct ocv_config {
 	current should pass this threshold first. then
 	current should remain above this threshold for
 	[sleep_exit_samples] consecutive samples*/
-	uint8_t sleep_exit_current;
+	uint16_t sleep_exit_current;
 	/*sleep_exit_samples: to exit SLEEP mode, average
 	current should pass this threshold first, then current
 	should remain above this threshold for [sleep_exit_samples]
@@ -587,14 +616,15 @@ struct battery_platform_data {
 	unsigned int  ocv_size;
 
 	unsigned int monitoring_interval;
-
+	unsigned int max_charger_ilimitmA;
 	unsigned int max_charger_currentmA;
 	unsigned int max_charger_voltagemV;
 	unsigned int termination_currentmA;
 
 	unsigned int max_bat_voltagemV;
 	unsigned int low_bat_voltagemV;
-
+	unsigned int chrg_diff_vol;
+	unsigned int power_off_thresd;
 	unsigned int sense_resistor_mohm;
 
 	/* twl6032 */
@@ -604,6 +634,54 @@ struct battery_platform_data {
 	struct cell_config *cell_cfg;
 };
 
+enum fg_mode {
+	FG_NORMAL_MODE = 0,/*work normally*/
+	TEST_POWER_MODE,   /*work without battery*/
+};
 
+enum hw_support_adp {
+	HW_ADP_TYPE_USB = 0,/*'HW' means:hardware*/
+	HW_ADP_TYPE_DC,
+	HW_ADP_TYPE_DUAL
+};
+
+
+/* don't change the following ID, they depend on usb check
+ * interface: dwc_otg_check_dpdm()
+ */
+enum charger_type {
+	NO_CHARGER = 0,
+	USB_CHARGER,
+	AC_CHARGER,
+	DC_CHARGER,
+	DUAL_CHARGER
+};
+
+enum charger_state {
+	OFFLINE = 0,
+	ONLINE
+};
+
+void kernel_power_off(void);
+#if defined(CONFIG_ARCH_ROCKCHIP)
+int dwc_vbus_status(void);
+int get_gadget_connect_flag(void);
+void rk_send_wakeup_key(void);
+#else
+
+static inline int get_gadget_connect_flag(void)
+{
+	return 0;
+}
+
+static inline int dwc_otg_check_dpdm(bool wait)
+{
+	return 0;
+}
+
+static inline void rk_send_wakeup_key(void)
+{
+}
+#endif
 
 #endif

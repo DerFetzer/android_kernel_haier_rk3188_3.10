@@ -89,6 +89,7 @@
 #define _HW_STATE_ADHOC_		0x01
 #define _HW_STATE_STATION_ 	0x02
 #define _HW_STATE_AP_			0x03
+#define _HW_STATE_MONITOR_ 0x04
 
 
 #define		_1M_RATE_	0
@@ -478,6 +479,7 @@ struct mlme_ext_info
 
 #if defined(CONFIG_STA_MODE_SCAN_UNDER_AP_MODE) || defined(CONFIG_ATMEL_RC_PATCH)
 	u8 scan_cnt;
+	u8 backop_cnt;
 #endif //CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
 };
 

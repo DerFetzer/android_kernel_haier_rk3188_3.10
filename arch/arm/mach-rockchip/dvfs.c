@@ -941,7 +941,7 @@ static struct pvtm_info rk3288v2_arm_pvtm_info = {
 };
 
 static struct pvtm_info *pvtm_info_table[] = {
-	&rk3288v0_arm_pvtm_info,
+	//&rk3288v0_arm_pvtm_info,
 	&rk3288v1_arm_pvtm_info,
 	&rk3288v2_arm_pvtm_info
 };

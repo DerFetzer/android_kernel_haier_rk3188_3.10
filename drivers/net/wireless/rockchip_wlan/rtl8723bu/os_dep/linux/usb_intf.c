@@ -959,10 +959,7 @@ int rtw_hw_resume(_adapter *padapter)
 	netif_device_attach(pnetdev);
 	netif_carrier_on(pnetdev);
 
-	if(!rtw_netif_queue_stopped(pnetdev))
-      		rtw_netif_start_queue(pnetdev);
-	else
-		rtw_netif_wake_queue(pnetdev);
+	rtw_netif_wake_queue(pnetdev);
 
 	pwrpriv->bkeepfwalive = _FALSE;
 	pwrpriv->brfoffbyhw = _FALSE;
@@ -1693,7 +1690,7 @@ _func_exit_;
 extern int console_suspend_enabled;
 #endif
 
-static int rtw_drv_entry(void)
+static int  rtw_drv_entry(void)
 {
 	int ret = 0;
 
@@ -1754,40 +1751,50 @@ static void rtw_drv_halt(void)
 }
 
 #include "wifi_version.h"
-
+#include <linux/rfkill-wlan.h>
+extern int get_wifi_chip_type(void);
+//extern int wifi_activate_usb(void);
+//extern int wifi_deactivate_usb(void);
 extern int rockchip_wifi_power(int on);
 extern int rockchip_wifi_set_carddetect(int val);
 
 int rockchip_wifi_init_module_rtkwifi(void)
 {
+#ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
+    int type = get_wifi_chip_type();
+    if (type < WIFI_AP6XXX_SERIES || type == WIFI_ESP8089) return 0;
+#endif
     printk("\n");
     printk("=======================================================\n");
     printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
     printk("Realtek 8723BU USB WiFi driver (Powered by Rockchip,Ver %s) init.\n", RTL8723BU_DRV_VERSION);
-
     rockchip_wifi_power(1);
     return rtw_drv_entry();
 }
 
 void rockchip_wifi_exit_module_rtkwifi(void)
 {
+#ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
+    int type = get_wifi_chip_type();
+    if (type < WIFI_AP6XXX_SERIES || type == WIFI_ESP8089) return;
+#endif
     printk("\n");
     printk("=======================================================\n");
     printk("==== Dislaunching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
     printk("Realtek 8723BU USB WiFi driver (Powered by Rockchip,Ver %s) init.\n", RTL8723BU_DRV_VERSION);
-
     rtw_drv_halt();
     rockchip_wifi_power(0);
+  // wifi_deactivate_usb();
 }
 
-#ifdef CONFIG_RTL8723BU
+#ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
+late_initcall(rockchip_wifi_init_module_rtkwifi);
+module_exit(rockchip_wifi_exit_module_rtkwifi);
+#else
 EXPORT_SYMBOL(rockchip_wifi_init_module_rtkwifi);
 EXPORT_SYMBOL(rockchip_wifi_exit_module_rtkwifi);
-#else
-module_init(rockchip_wifi_init_module_rtkwifi);
-module_exit(rockchip_wifi_exit_module_rtkwifi);
 #endif
 //module_init(rtw_drv_entry);
 //module_exit(rtw_drv_halt);

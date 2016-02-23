@@ -1561,7 +1561,7 @@ static void id_status_change(dwc_otg_core_if_t *p, bool current_id)
 		core_if->op_state = A_HOST;
 		dwc_otg_set_force_mode(core_if, USB_MODE_FORCE_HOST);
 
-		cancel_delayed_work(&pcd->check_vbus_work);
+		cancel_delayed_work_sync(&pcd->check_vbus_work);
 
 		/*
 		 * Initialize the Core for Host mode.
@@ -1584,15 +1584,14 @@ static void check_id(struct work_struct *work)
 
 	if (last_id != id) {
 		pr_info("[otg id chg] last id %d current id %d\n", last_id, id);
-		if (!id) { /* Force Host */
-			if (pldata->phy_status == USB_PHY_SUSPEND) {
-				pldata->clock_enable(pldata, 1);
-				pldata->phy_suspend(pldata, USB_PHY_ENABLED);
-	}
-			id_status_change(otg_dev->core_if, id);
-		} else { /* Force Device */
-			id_status_change(otg_dev->core_if, id);
+
+		if (pldata->phy_status == USB_PHY_SUSPEND) {
+			pldata->clock_enable(pldata, 1);
+			pldata->phy_suspend(pldata, USB_PHY_ENABLED);
 		}
+
+		/* Force Device or Host by id */
+		id_status_change(otg_dev->core_if, id);
 	}
 	last_id = id;
 	schedule_delayed_work(&_pcd->check_id_work, (HZ));
@@ -1635,7 +1634,7 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 			_pcd->conn_status++;
 			if (pldata->bc_detect_cb != NULL) {
 				pldata->bc_detect_cb(_pcd->vbus_status =
-						     USB_BC_TYPE_DCP);
+						     usb_battery_charger_detect(1));
 			} else {
 				_pcd->vbus_status = USB_BC_TYPE_DCP;
 			}
@@ -1660,10 +1659,12 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 		if (pldata->phy_status == USB_PHY_ENABLED) {
 			/* release wake lock */
 			dwc_otg_msc_unlock(_pcd);
-			/* no vbus detect here , close usb phy  */
-			pldata->phy_suspend(pldata, USB_PHY_SUSPEND);
-			udelay(3);
-			pldata->clock_enable(pldata, 0);
+			if (pldata->get_status(USB_STATUS_ID)) {
+				/* no vbus detect here , close usb phy  */
+				pldata->phy_suspend(pldata, USB_PHY_SUSPEND);
+				udelay(3);
+				pldata->clock_enable(pldata, 0);
+			}
 		}
 
 		/* usb phy bypass to uart mode  */
@@ -1671,7 +1672,8 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 			pldata->dwc_otg_uart_mode(pldata, PHY_UART_MODE);
 	}
 
-	schedule_delayed_work(&_pcd->check_vbus_work, HZ);
+	if (pldata->get_status(USB_STATUS_ID))
+		schedule_delayed_work(&_pcd->check_vbus_work, HZ);
 	return;
 
 connect:

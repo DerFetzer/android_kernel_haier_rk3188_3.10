@@ -1265,7 +1265,7 @@ _func_enter_;
 					rtw_update_registrypriv_dev_network(adapter);
 					rtw_generate_random_ibss(pibss);
 
-                       			pmlmepriv->fw_state = WIFI_ADHOC_MASTER_STATE;
+					pmlmepriv->fw_state = WIFI_ADHOC_MASTER_STATE;
 			
 					if(rtw_createbss_cmd(adapter)!=_SUCCESS)
 					{
@@ -1471,16 +1471,16 @@ _func_enter_;
 			rtw_tdls_cmd(adapter, myid(&(adapter->eeprompriv)), TDLS_RS_RCR);
 			rtw_reset_tdls_info(adapter);
 			rtw_free_all_stainfo(adapter);
-			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+			//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		}
 		else
 #endif //CONFIG_TDLS
 		{
-			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+			//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 			rtw_free_stainfo(adapter,  psta);
 		}
 
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 	}
 
@@ -1491,9 +1491,9 @@ _func_enter_;
 		rtw_free_all_stainfo(adapter);
 
 		psta = rtw_get_bcmc_stainfo(adapter);
-		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
+		//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		rtw_free_stainfo(adapter, psta);
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 
 		rtw_init_bcmc_stainfo(adapter);	
 	}
@@ -1501,7 +1501,7 @@ _func_enter_;
 	if(lock_scanned_queue)
 		_enter_critical_bh(&(pmlmepriv->scanned_queue.lock), &irqL);
 	
-	pwlan = rtw_find_network(&pmlmepriv->scanned_queue, tgt_network->network.MacAddress);
+	pwlan = _rtw_find_same_network(&pmlmepriv->scanned_queue, tgt_network);
 	if(pwlan)		
 	{
 		pwlan->fixed = _FALSE;
@@ -1543,7 +1543,8 @@ _func_enter_;
 	if((check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE) && (adapter->stapriv.asoc_sta_count== 1))
 		/*||check_fwstate(pmlmepriv, WIFI_STATION_STATE)*/)
 	{
-		rtw_free_network_nolock(pmlmepriv, pwlan); 
+		if (pwlan)
+			rtw_free_network_nolock(pmlmepriv, pwlan);
 	}
 
 	if(lock_scanned_queue)
@@ -1721,17 +1722,17 @@ inline void rtw_indicate_scan_done( _adapter *padapter, bool aborted)
 #endif // CONFIG_IPS
 }
 
-void rtw_scan_abort(_adapter *adapter)
+u32 rtw_scan_abort_timeout(_adapter *adapter, u32 timeout_ms)
 {
-	u32 cnt=0;
 	u32 start;
-	struct mlme_priv	*pmlmepriv = &(adapter->mlmepriv);
-	struct mlme_ext_priv	*pmlmeext = &(adapter->mlmeextpriv);
+	u32 pass_ms;
+	struct mlme_priv *pmlmepriv = &(adapter->mlmepriv);
+	struct mlme_ext_priv *pmlmeext = &(adapter->mlmeextpriv);
 
 	start = rtw_get_current_time();
 	pmlmeext->scan_abort = _TRUE;
 	while (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY)
-		&& rtw_get_passing_time_ms(start) <= 200) {
+		&& rtw_get_passing_time_ms(start) <= timeout_ms) {
 
 		if (adapter->bDriverStopped || adapter->bSurpriseRemoved)
 			break;
@@ -1751,6 +1752,23 @@ void rtw_scan_abort(_adapter *adapter)
 		rtw_indicate_scan_done(adapter, _TRUE);
 	}
 	pmlmeext->scan_abort = _FALSE;
+	pass_ms = rtw_get_passing_time_ms(start);
+
+	return pass_ms;
+}
+
+void rtw_scan_abort_no_wait(_adapter *adapter)
+{
+	struct mlme_priv *pmlmepriv = &(adapter->mlmepriv);
+	struct mlme_ext_priv *pmlmeext = &(adapter->mlmeextpriv);
+
+	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY))
+		pmlmeext->scan_abort = _TRUE;
+}
+
+void rtw_scan_abort(_adapter *adapter)
+{
+	rtw_scan_abort_timeout(adapter, 200);
 }
 
 static struct sta_info *rtw_joinbss_update_stainfo(_adapter *padapter, struct wlan_network *pnetwork)
@@ -2036,9 +2054,9 @@ _func_enter_;
 
 					pcur_sta = rtw_get_stainfo(pstapriv, cur_network->network.MacAddress);
 					if(pcur_sta){
-						_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+						//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 						rtw_free_stainfo(adapter,  pcur_sta);
-						_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+						//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 					}
 
 					ptarget_wlan = rtw_find_network(&pmlmepriv->scanned_queue, pnetwork->network.MacAddress);
@@ -2502,9 +2520,9 @@ _func_enter_;
 	      check_fwstate(pmlmepriv,WIFI_ADHOC_STATE))
 	{
 		
-		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		rtw_free_stainfo(adapter,  psta);
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 		if(adapter->stapriv.asoc_sta_count== 1) //a sta + bc/mc_stainfo (not Ibss_stainfo)
 		{ 
@@ -3650,6 +3668,7 @@ void rtw_update_registrypriv_dev_network(_adapter* adapter)
 	struct	security_priv*	psecuritypriv = &adapter->securitypriv;
 	struct	wlan_network	*cur_network = &adapter->mlmepriv.cur_network;
 	//struct	xmit_priv	*pxmitpriv = &adapter->xmitpriv;
+	struct mlme_ext_priv	*pmlmeext = &adapter->mlmeextpriv;
 
 _func_enter_;
 
@@ -3697,8 +3716,14 @@ _func_enter_;
 	pdev_network->Configuration.DSConfig = (pregistrypriv->channel);
 	RT_TRACE(_module_rtl871x_mlme_c_,_drv_info_,("pregistrypriv->channel=%d, pdev_network->Configuration.DSConfig=0x%x\n", pregistrypriv->channel, pdev_network->Configuration.DSConfig));	
 
-	if(cur_network->network.InfrastructureMode == Ndis802_11IBSS)
+	if (cur_network->network.InfrastructureMode == Ndis802_11IBSS) {
 		pdev_network->Configuration.ATIMWindow = (0);
+
+		if (pmlmeext->cur_channel != 0)
+			pdev_network->Configuration.DSConfig = pmlmeext->cur_channel;
+		else 
+			pdev_network->Configuration.DSConfig = 1;
+	}
 
 	pdev_network->InfrastructureMode = (cur_network->network.InfrastructureMode);
 
@@ -4495,3 +4520,19 @@ u8 rtw_get_buddy_bBusyTraffic(_adapter *padapter)
 }
 
 #endif //CONFIG_CONCURRENT_MODE
+
+static const char *miracast_mode_str[] = {
+	"DISABLED",
+	"SOURCE",
+	"SINK",
+	"INVALID",
+};
+
+const char *get_miracast_mode_str(int mode)
+{
+	if (mode < MIRACAST_DISABLED || mode >= MIRACAST_INVALID)
+		mode = MIRACAST_INVALID;
+
+	return miracast_mode_str[mode];
+}
+

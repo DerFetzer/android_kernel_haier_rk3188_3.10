@@ -120,7 +120,7 @@ const static int ldo_set_slp_vol_base_addr[] = {
 #define rk818_LDO_SET_SLP_VOL_REG(x) (ldo_set_slp_vol_base_addr[x])
 
 const static int buck_voltage_map[] = {
-	  700,  712,  725,  737,  750, 762,  775,  787,  800, 
+	  712,  725,  737,  750, 762,  775,  787,  800,
 	  812,  825,  837,  850,862,  875,  887,  900,  912,
 	  925,  937,  950, 962,  975,  987, 1000, 1012, 1025, 
 	  1037, 1050,1062, 1075, 1087, 1100, 1112, 1125, 1137, 
@@ -295,6 +295,37 @@ static int rk818_ldo_suspend_disable(struct regulator_dev *dev)
 		return rk818_set_bits(rk818, RK818_SLEEP_SET_OFF_REG2, 1 << ldo, 1 << ldo);
 
 }
+
+int rk818_ldo_slp_enable(int ldo_id)
+{
+	int ldo = ldo_id - 1;
+
+	if (ldo == 8)
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG1,
+				      1 << 5, 0); /*ldo9*/
+	else if (ldo == 9)
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG1,
+				      1 << 6, 0); /*ldo10 switch*/
+	else
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG2,
+				      1 << ldo, 0);
+}
+
+int rk818_ldo_slp_disable(int ldo_id)
+{
+	int ldo = ldo_id - 1;
+
+	if (ldo == 8)
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG1,
+				      1 << 5, 1 << 5); /*ldo9*/
+	else if (ldo == 9)
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG1,
+				      1 << 6, 1 << 6); /*ldo10 switch*/
+	else
+		return rk818_set_bits(g_rk818, RK818_SLEEP_SET_OFF_REG2,
+				      1 << ldo, 1 << ldo);
+}
+
 static int rk818_ldo_set_sleep_voltage(struct regulator_dev *dev,
 					    int uV)
 {
@@ -400,7 +431,7 @@ static int rk818_dcdc_list_voltage(struct regulator_dev *dev, unsigned selector)
 	switch (buck) {
 	case 0:
 	case 1:
-		volt = 700000 + selector * 12500;
+		volt = 712500 + selector * 12500;
 		break;
 	case 3:
 		volt = 1800000 + selector * 100000;
@@ -463,10 +494,10 @@ static int rk818_dcdc_select_min_voltage(struct regulator_dev *dev,
 	u16 vsel =0;
 	
 	if (buck == 0 || buck ==  1){
-		if (min_uV < 700000)
+		if (min_uV < 712500)
 		vsel = 0;
 		else if (min_uV <= 1500000)
-		vsel = ((min_uV - 700000) / 12500) ;
+		vsel = ((min_uV - 712500) / 12500) ;
 		else
 		return -EINVAL;
 	}
@@ -1069,6 +1100,9 @@ static void rk818_shutdown(void)
 	pr_info("%s\n", __func__);
 	ret = rk818_set_bits(rk818, RK818_INT_STS_MSK_REG1,(0x3<<5),(0x3<<5)); //close rtc int when power off
 	ret = rk818_clear_bits(rk818, RK818_RTC_INT_REG,(0x3<<2)); //close rtc int when power off
+	/*disable otg_en*/
+	ret = rk818_clear_bits(rk818, RK818_DCDC_EN_REG, (0x1<<7));
+
 	mutex_lock(&rk818->io_lock);
 	mdelay(100);
 }
@@ -1106,14 +1140,43 @@ __weak void  rk818_device_suspend(void) {}
 __weak void  rk818_device_resume(void) {}
 #ifdef CONFIG_PM
 static int rk818_suspend(struct i2c_client *i2c, pm_message_t mesg)
-{		
+{
+	int ret, val;
+	struct rk818 *rk818 = g_rk818;
+
 	rk818_device_suspend();
+	/************set vbat low 3v4 to irq**********/
+	val = rk818_reg_read(rk818, RK818_VB_MON_REG);
+	val &= (~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
+	val |= (RK818_VBAT_LOW_3V4 | EN_VBAT_LOW_IRQ);
+	ret = rk818_reg_write(rk818, RK818_VB_MON_REG, val);
+	if (ret < 0) {
+		pr_err("Unable to write RK818_VB_MON_REG reg\n");
+		return ret;
+	}
+	/*enable low irq*/
+	rk818_set_bits(rk818, 0x4d, (0x1 << 1), (0x0 << 1));
 	return 0;
 }
 
 static int rk818_resume(struct i2c_client *i2c)
 {
+	int ret, val;
+	struct rk818 *rk818 = g_rk818;
+
 	rk818_device_resume();
+	/********set vbat low 3v0 to shutdown**********/
+	val = rk818_reg_read(rk818, RK818_VB_MON_REG);
+	val &= (~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
+	val |= (RK818_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN);
+	ret = rk818_reg_write(rk818, RK818_VB_MON_REG, val);
+	if (ret < 0) {
+		pr_err("Unable to write RK818_VB_MON_REG reg\n");
+		return ret;
+	}
+	/*disable low irq*/
+	rk818_set_bits(rk818, 0x4d, (0x1 << 1), (0x1 << 1));
+
 	return 0;
 }
 #else
@@ -1131,58 +1194,74 @@ static int rk818_resume(struct i2c_client *i2c)
 static int rk818_pre_init(struct rk818 *rk818)
 {
 	int ret,val;
-	 printk("%s,line=%d\n", __func__,__LINE__);
+	printk("%s,line=%d\n", __func__,__LINE__);
 
+	ret = rk818_set_bits(rk818, 0xa1, (0xF<<0),(0x7));
 	ret = rk818_set_bits(rk818, 0xa1,(0x7<<4),(0x7<<4)); //close charger when usb low then 3.4V
- 	ret = rk818_set_bits(rk818, 0x52,(0x1<<1),(0x1<<1)); //no action when vref
-	
+	ret = rk818_set_bits(rk818, 0x52,(0x1<<1),(0x1<<1)); //no action when vref
+	ret = rk818_set_bits(rk818, 0x52,(0x1<<0),(0x1<<0)); //enable HDMI 5V
+
 	/*******enable switch and boost***********/
 	val = rk818_reg_read(rk818,RK818_DCDC_EN_REG);
-        val |= (0x3 << 5);    //enable switch1/2
+	val |= (0x3 << 5);    //enable switch1/2
 	val |= (0x1 << 4);    //enable boost
-        ret = rk818_reg_write(rk818,RK818_DCDC_EN_REG,val);
-         if (ret <0) {
-                printk(KERN_ERR "Unable to write RK818_DCDC_EN_REG reg\n");
-                return ret;
+	ret = rk818_reg_write(rk818,RK818_DCDC_EN_REG,val);
+	if (ret <0) {
+		printk(KERN_ERR "Unable to write RK818_DCDC_EN_REG reg\n");
+		return ret;
 	}
 	/****************************************/
-	
 	/****************set vbat low **********/
 	val = rk818_reg_read(rk818,RK818_VB_MON_REG);
-       val &=(~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
-       val |= (RK818_VBAT_LOW_3V5 | EN_VBAT_LOW_IRQ);
-       ret = rk818_reg_write(rk818,RK818_VB_MON_REG,val);
-         if (ret <0) {
-                printk(KERN_ERR "Unable to write RK818_VB_MON_REG reg\n");
-                return ret;
-        }
+	val &=(~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
+	val |= (RK818_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN);
+	ret = rk818_reg_write(rk818,RK818_VB_MON_REG,val);
+	if (ret <0) {
+		printk(KERN_ERR "Unable to write RK818_VB_MON_REG reg\n");
+		return ret;
+	}
 	/**************************************/
-	
+
 	/**********mask int****************/
-	 val = rk818_reg_read(rk818,RK818_INT_STS_MSK_REG1);
-         val |= (0x1<<0); //mask vout_lo_int    
-        ret = rk818_reg_write(rk818,RK818_INT_STS_MSK_REG1,val);
-         if (ret <0) {
-                printk(KERN_ERR "Unable to write RK818_INT_STS_MSK_REG1 reg\n");
-                return ret;
-        }
+
+	val = rk818_reg_read(rk818,RK818_INT_STS_MSK_REG1);
+	val |= (0x1<<0); //mask vout_lo_int
+	ret = rk818_reg_write(rk818,RK818_INT_STS_MSK_REG1,val);
+	if (ret <0) {
+		printk(KERN_ERR "Unable to write RK818_INT_STS_MSK_REG1 reg\n");
+		return ret;
+	}
+
 	/**********************************/
 	/**********enable clkout2****************/
-        ret = rk818_reg_write(rk818,RK818_CLK32OUT_REG,0x01);
-         if (ret <0) {
-                printk(KERN_ERR "Unable to write RK818_CLK32OUT_REG reg\n");
-                return ret;
-        }
+	ret = rk818_reg_write(rk818,RK818_CLK32OUT_REG,0x01);
+	if (ret <0) {
+		printk(KERN_ERR "Unable to write RK818_CLK32OUT_REG reg\n");
+		return ret;
+	}
 	/**********************************/
 	ret = rk818_clear_bits(rk818, RK818_INT_STS_MSK_REG1,(0x3<<5)); //open rtc int when power on
- 	ret = rk818_set_bits(rk818, RK818_RTC_INT_REG,(0x1<<3),(0x1<<3)); //open rtc int when power on
+	ret = rk818_set_bits(rk818, RK818_RTC_INT_REG,(0x1<<3),(0x1<<3)); //open rtc int when power on
 
-	/*****disable otg and boost when in sleep mode****/
+	/*****disable otg when in sleep mode****/
 	val = rk818_reg_read(rk818, RK818_SLEEP_SET_OFF_REG1);
-	val |= ((0x1 << 7) | (0x1 << 4));
+	val |= (0x1 << 7);
 	ret =  rk818_reg_write(rk818, RK818_SLEEP_SET_OFF_REG1, val);
 	if (ret < 0) {
 		pr_err("Unable to write RK818_SLEEP_SET_OFF_REG1 reg\n");
+		return ret;
+	}
+
+	/*************** improve efficiency **********************/
+	ret =  rk818_reg_write(rk818, RK818_BUCK2_CONFIG_REG, 0x1c);
+	if (ret < 0) {
+		pr_err("Unable to write RK818_BUCK2_CONFIG_REG reg\n");
+		return ret;
+	}
+
+	ret =  rk818_reg_write(rk818, RK818_BUCK4_CONFIG_REG, 0x04);
+	if (ret < 0) {
+		pr_err("Unable to write RK818_BUCK4_CONFIG_REG reg\n");
 		return ret;
 	}
 
