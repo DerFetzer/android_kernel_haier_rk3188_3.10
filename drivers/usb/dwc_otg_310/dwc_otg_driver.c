@@ -413,6 +413,7 @@ static ssize_t force_usb_mode_show(struct device_driver *drv, char *buf)
 	return sprintf(buf, "%d\n", core_if->usb_mode);
 }
 
+static bool init_mode = true;
 static ssize_t force_usb_mode_store(struct device_driver *drv, const char *buf,
 				    size_t count)
 {
@@ -420,6 +421,7 @@ static ssize_t force_usb_mode_store(struct device_driver *drv, const char *buf,
 	dwc_otg_device_t *otg_dev = g_otgdev;
 	dwc_otg_core_if_t *core_if;
 	struct dwc_otg_platform_data *pldata;
+	int tmp_mode = 0;
 
 	if (!otg_dev)
 		return -EINVAL;
@@ -427,7 +429,15 @@ static ssize_t force_usb_mode_store(struct device_driver *drv, const char *buf,
 	core_if = otg_dev->core_if;
 	pldata = otg_dev->pldata;
 
+	if (init_mode == true){
+		tmp_mode = new_mode;
+		new_mode = core_if->usb_mode;
+		core_if->usb_mode = tmp_mode;
+		init_mode = false;
+	}
+
 	DWC_PRINTF("%s %d->%d\n", __func__, core_if->usb_mode, new_mode);
+
 
 	if (core_if->usb_mode == new_mode) {
 		return count;
