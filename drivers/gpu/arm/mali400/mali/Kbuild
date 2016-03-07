@@ -53,8 +53,9 @@ ifneq ($(MALI_PLATFORM),)
 	#MALI_PLATFORM_FILES = $(wildcard platform/$(MALI_PLATFORM)/*.c)
 	mali-y += \
 		platform/$(MALI_PLATFORM)/mali_platform.o \
-		platform/$(MALI_PLATFORM)/rk3066.o \
 		platform/$(MALI_PLATFORM)/mali_dvfs.o \
+		platform/$(MALI_PLATFORM)/rk3066.o \
+		platform/$(MALI_PLATFORM)/arm.o \
 		platform/$(MALI_PLATFORM)/arm_core_scaling.o
 endif
 
