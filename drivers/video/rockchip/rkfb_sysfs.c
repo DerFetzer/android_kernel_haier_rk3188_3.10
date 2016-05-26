@@ -673,6 +673,8 @@ static ssize_t set_dsp_bcsh(struct device *dev, struct device_attribute *attr,
 
 	return count;
 }
+extern int scale_x = 100;
+extern int scale_y= 100;
 
 static ssize_t show_scale(struct device *dev,
 			  struct device_attribute *attr, char *buf)
@@ -688,7 +690,6 @@ static ssize_t show_scale(struct device *dev,
 		dev_drv->overscan.left, dev_drv->overscan.top,
 		dev_drv->overscan.right, dev_drv->overscan.bottom);
 }
-
 static ssize_t set_scale(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
@@ -744,6 +745,12 @@ static ssize_t set_scale(struct device *dev, struct device_attribute *attr,
 			dev_drv->overscan.top = left;
 			dev_drv->overscan.bottom = left;
 		}
+	}
+
+	if(left>=80&&left<=100&&top>=80&&left<=100)
+	{
+		scale_x =left;
+		scale_y =top;
 	}
 
 	if (dev_drv->ops->set_overscan)

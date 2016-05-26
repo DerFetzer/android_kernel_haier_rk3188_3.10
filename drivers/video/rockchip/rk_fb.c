@@ -69,6 +69,7 @@ int (*video_data_to_mirroring) (struct fb_info *info, u32 yuv_phy[2]);
 EXPORT_SYMBOL(video_data_to_mirroring);
 #endif
 
+extern int scale_x,scale_y;
 extern phys_addr_t uboot_logo_base;
 extern phys_addr_t uboot_logo_size;
 extern phys_addr_t uboot_logo_offset;
@@ -1613,7 +1614,7 @@ static struct rk_fb_reg_win_data *rk_fb_get_win_data(struct rk_fb_reg_data
 static void rk_fb_update_reg(struct rk_lcdc_driver *dev_drv,
 			     struct rk_fb_reg_data *regs)
 {
-	int i, j;
+	int i, j,stx,sty;
 	struct rk_lcdc_win *win;
 	ktime_t timestamp = dev_drv->vsync_info.timestamp;
 	struct rk_fb *rk_fb = platform_get_drvdata(fb_pdev);
@@ -1636,6 +1637,7 @@ static void rk_fb_update_reg(struct rk_lcdc_driver *dev_drv,
 
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
 		win = dev_drv->win[i];
+
 		win_data = rk_fb_get_win_data(regs, i);
 		if (win_data) {
 			if (rk_fb->disp_policy == DISPLAY_POLICY_BOX &&
@@ -1645,7 +1647,14 @@ static void rk_fb_update_reg(struct rk_lcdc_driver *dev_drv,
 			mutex_lock(&dev_drv->win_config);
 			rk_fb_update_win(dev_drv, win, win_data);
 			win->state = 1;
+	
+			stx = (dev_drv->win[0]->area[0].xsize -dev_drv->win[0]->area[0].xsize *scale_x/100)/2-1;
+			sty = (dev_drv->win[0]->area[0].ysize - dev_drv->win[0]->area[0].ysize*scale_y/100)/2-1;
+			dev_drv->win[0]->area[0].xsize = dev_drv->win[0]->area[0].xsize *scale_x/100;
+			dev_drv->win[0]->area[0].ysize = dev_drv->win[0]->area[0].ysize *scale_y/100;
 			dev_drv->ops->set_par(dev_drv, i);
+			dev_drv->win[0]->area[0].dsp_stx = dev_drv->win[0]->area[0].dsp_stx + stx;
+			dev_drv->win[0]->area[0].dsp_sty = dev_drv->win[0]->area[0].dsp_sty + sty;
 			dev_drv->ops->pan_display(dev_drv, i);
 			mutex_unlock(&dev_drv->win_config);
 #if defined(CONFIG_ROCKCHIP_IOMMU)
