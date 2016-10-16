@@ -56,6 +56,7 @@ config MIPI_DSI
 	depends on RK_TRSM
 	bool "Rockchip MIPI DSI support"
 
+
 config TC358768_RGB2MIPI
         tristate "toshiba TC358768 RGB to MIPI DSI"
 	depends on MIPI_DSI
@@ -74,6 +75,11 @@ config RK32_MIPI_DSI
         help
            Rockchip mipi dsi support.		
 
+config RK616_MIPI_DSI
+        tristate "RK616 mipi dsi support"
+        depends on MIPI_DSI
+        help
+           Rockchip mipi dsi support.
 			
 config RK616_MIPI_DSI_RST
 	bool "Reset the rockchip mipi dsi"
