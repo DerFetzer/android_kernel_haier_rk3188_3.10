@@ -1,7 +1,9 @@
 #ifndef __RK616_VIF_H__
 #define __RK616_VIF_H__
 #include<linux/mfd/rk616.h>
+#ifdef CONFIG_HAS_EARLYSUSPEND
 #include<linux/earlysuspend.h>
+#endif 
 #include<linux/rk_screen.h>
 
 

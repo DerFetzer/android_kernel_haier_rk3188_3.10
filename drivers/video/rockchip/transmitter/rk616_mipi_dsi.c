@@ -20,9 +20,9 @@
 //#define CONFIG_MIPI_DSI_FT 	1
 //#define CONFIG_MFD_RK616   	1
 //#define CONFIG_ARCH_RK319X    1
-#define CONFIG_ARCH_RK3288    1
+//#define CONFIG_ARCH_RK3288    1
 
-#ifdef CONFIG_MIPI_DSI_LINUX
+/*#ifdef CONFIG_MIPI_DSI_LINUX
 #if defined(CONFIG_MFD_RK616)
 #define DWC_DSI_VERSION		0x3131302A
 #define DWC_DSI_VERSION_0x3131302A 1
@@ -34,11 +34,13 @@
 #define DWC_DSI_VERSION_0x3133302A 1
 #else
 #define DWC_DSI_VERSION -1
-#endif  /* CONFIG_MFD_RK616 */
+#endif 
 #else
 #define DWC_DSI_VERSION		0x3131302A
-#endif  /* end of CONFIG_MIPI_DSI_LINUX*/
+#endif*/
 
+#define DWC_DSI_VERSION		0x3131302A
+#define DWC_DSI_VERSION_0x3131302A 1
 
 #ifdef CONFIG_MIPI_DSI_LINUX
 #include <linux/kernel.h>
@@ -120,6 +122,7 @@ static struct dsi *dsi1;
 #ifdef CONFIG_MFD_RK616
 static struct mfd_rk616 *dsi_rk616;
 static struct rk29fb_screen *g_rk29fd_screen = NULL;
+static struct mipi_dsi_screen *g_screen = NULL;
 #endif
 
 #ifdef CONFIG_MIPI_DSI_FT
@@ -261,6 +264,7 @@ static int dsi_set_bits(struct dsi *dsi, u32 data, u32 reg)
 	return 0;
 }
 
+#if defined(CONFIG_ARCH_RK3288)
 static int dwc_phy_test_rd(struct dsi *dsi, unsigned char test_code)
 {
     int val = 0;
@@ -295,6 +299,7 @@ static int dwc_phy_test_wr(struct dsi *dsi, unsigned char test_code, unsigned ch
 	}
 	return 0;
 }
+#endif
 
 #ifdef CONFIG_MFD_RK616
 static int rk_mipi_recover_reg(void) 
@@ -627,6 +632,8 @@ static int inno_phy_init(struct dsi *dsi)
 	return 0;
 }
 #endif
+
+#if defined(CONFIG_ARCH_RK3288)
 static int rk32_phy_power_up(struct dsi *dsi)
 {
     //enable ref clock
@@ -794,6 +801,7 @@ static int rk32_phy_init(struct dsi *dsi)
 
     return 0;
 }
+#endif
 
 static int rk_mipi_dsi_phy_power_up(struct dsi *dsi)
 {
@@ -1419,6 +1427,8 @@ static int rk_mipi_dsi_send_gen_packet(void *arg, void *data, u32 n)
 
 static int rk_mipi_dsi_read_dcs_packet(void *arg, unsigned char *data1, u32 n)
 {
+    u32 data;
+    int type;
     struct dsi *dsi = arg;
 	//DCS READ 
 	//unsigned char *regs = data;
@@ -1426,10 +1436,10 @@ static int rk_mipi_dsi_read_dcs_packet(void *arg, unsigned char *data1, u32 n)
 	regs[0] = LPDT;
 	regs[1] = 0x0a;
 	 n = n - 1;
-	u32 data = 0;
+	data = 0;
 	
 	dsi_set_bits(dsi, regs[0], dcs_sr_0p_tx);
-	int type = 0x06;
+	type = 0x06;
 
    /* if(type == DTYPE_GEN_SWRITE_0P)
         data = (dsi->vid << 6) | (n << 4) | type;
@@ -2088,14 +2098,14 @@ static int rk616_mipi_dsi_notifier_event(struct notifier_block *this,
     }
     else if(event == 2)
     {
-        rk_mipi_dsi_init_lite(dsi);
+        rk_mipi_dsi_init_lite(dsi1);
         mdelay(5);
         g_screen->standby(1);
         mdelay(5);
         rk616_mipi_dsi_resume();
     }
 #else
-      	rk_mipi_dsi_init_lite(dsi);
+      	rk_mipi_dsi_init_lite(dsi1);
 #endif
 	return 0;
 }		
@@ -2117,9 +2127,9 @@ static int rk32_dsi_enable(void)
 {   
     MIPI_DBG("rk32_dsi_enable-------\n");
     
-    dsi_init(0, NULL, 0);
+    dsi_init(0, 0);
     if (rk_mipi_get_dsi_num() ==2)
-        dsi_init(1, NULL, 0);
+        dsi_init(1, 0);
 		
     rk_mipi_screen_standby(0);    
 

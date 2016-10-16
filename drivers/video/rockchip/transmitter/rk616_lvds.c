@@ -8,7 +8,7 @@
 struct rk616_lvds *g_lvds;
 
 
-static int rk616_lvds_cfg(struct mfd_rk616 *rk616,rk_screen *screen)
+static int rk616_lvds_cfg(struct mfd_rk616 *rk616, struct rk_screen *screen)
 {
 	struct rk616_route *route = &rk616->route;
 	u32 val = 0;
@@ -85,7 +85,7 @@ static int rk616_lvds_cfg(struct mfd_rk616 *rk616,rk_screen *screen)
 }
 
 
-int rk616_scaler_set_param(rk_screen *screen,bool enable )//enable:0 bypass 1: scale
+int rk616_scaler_set_param(struct rk_screen *screen,bool enable )//enable:0 bypass 1: scale
 {
 	int ret;
 	struct mfd_rk616 *rk616 = g_lvds->rk616;
@@ -100,7 +100,7 @@ int rk616_scaler_set_param(rk_screen *screen,bool enable )//enable:0 bypass 1: s
 }
 
 
-static int rk616_lvds_init_cfg(struct mfd_rk616 *rk616,rk_screen *screen)
+static int rk616_lvds_init_cfg(struct mfd_rk616 *rk616, struct rk_screen *screen)
 {
 	int ret ;
 	ret = rk616_display_router_cfg(rk616,screen,0);
@@ -142,7 +142,7 @@ static int rk616_lvds_probe(struct platform_device *pdev)
 {
 	struct rk616_lvds *lvds = NULL; 
 	struct mfd_rk616 *rk616 = NULL;
-	rk_screen *screen = NULL;
+	struct rk_screen *screen = NULL;
 	lvds = kzalloc(sizeof(struct rk616_lvds),GFP_KERNEL);
 	if(!lvds)
 	{
