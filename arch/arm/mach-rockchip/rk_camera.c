@@ -16,6 +16,7 @@
 #include <linux/regulator/consumer.h>
 /**********yzm***********/
 #include <linux/gpio.h>
+#include <linux/slab.h>
 
 //#define PMEM_CAM_NECESSARY	 0x00000000    /*yzm*/
 
