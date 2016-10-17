@@ -75,6 +75,19 @@ config RK32_MIPI_DSI
         help
            Rockchip mipi dsi support.		
 
+config RK616_MIPI_DSI_OLD
+        tristate "RK616 mipi dsi support for RK3188"
+        depends on MIPI_DSI
+        help
+           Rockchip mipi dsi support for RK3188.
+
+config RK616_MIPI_DSI_RST_OLD
+	bool "Reset the rockchip mipi dsi"
+	depends on MFD_RK616 && RK616_MIPI_DSI_OLD && RK616_USE_MCLK_12M
+	default y
+	help
+	 if you say y here: inset the hdmi, mipi lcd will be reset. 
+
 config RK616_MIPI_DSI
         tristate "RK616 mipi dsi support"
         depends on MIPI_DSI
