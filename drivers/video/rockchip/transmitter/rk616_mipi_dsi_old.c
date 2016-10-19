@@ -51,9 +51,12 @@
 #include <linux/fs.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
 #include<linux/earlysuspend.h>
+#endif
+
 #include <linux/regulator/machine.h>
-#include <plat/clock.h>
 #else
 #include "ft_lcd.h"
 #endif
@@ -126,11 +129,12 @@ static struct mipi_dsi_screen *g_screen = NULL;
 #define msleep 		DelayMs_nops
 static u32 fre_to_period(u32 fre);
 #endif
-static int rk_mipi_dsi_is_active(void);
-static int rk_mipi_dsi_enable_hs_clk(u32 enable);
-static int rk_mipi_dsi_enable_video_mode(u32 enable);
-static int rk_mipi_dsi_enable_command_mode(u32 enable);
-static int rk_mipi_dsi_send_dcs_packet(unsigned char regs[], u32 n);
+static int rk_mipi_dsi_is_active(void *dsi);
+static int rk_mipi_dsi_enable_hs_clk(void *dsi, u32 enable);
+static int rk_mipi_dsi_enable_video_mode(void *dsi, u32 enable);
+static int rk_mipi_dsi_enable_command_mode(void *dsi, u32 enable);
+static int rk_mipi_dsi_send_dcs_packet(void *dsi, unsigned char regs[], u32 n);
+static int rk_mipi_dsi_is_enable(void *arg, u32 enable);
 
 #ifdef CONFIG_MFD_RK616
 static u32 *host_mem = NULL;
@@ -616,8 +620,8 @@ static int rk_mipi_dsi_host_power_up(void)
 
 static int rk_mipi_dsi_host_power_down(void) 
 {	
-	rk_mipi_dsi_enable_video_mode(0);
-	rk_mipi_dsi_enable_hs_clk(0);
+	rk_mipi_dsi_enable_video_mode(NULL, 0);
+	rk_mipi_dsi_enable_hs_clk(NULL, 0);
 	dsi_set_bits(0, shutdownz);
 	return 0;
 }
@@ -848,15 +852,15 @@ static int rk_mipi_dsi_init(void *array, u32 n)
 	rk_mipi_dsi_host_init(screen, n);
 
 	if(!screen->init) {
-		rk_mipi_dsi_enable_hs_clk(1);
+		rk_mipi_dsi_enable_hs_clk(NULL, 1);
 #ifndef CONFIG_MIPI_DSI_FT		
 		dcs[0] = HSDT;
 		dcs[1] = dcs_exit_sleep_mode__; 
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_set_display_on__;
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(10);
 #endif	
 	} else {
@@ -868,7 +872,7 @@ static int rk_mipi_dsi_init(void *array, u32 n)
 		pixel data, and preventing image transmission in the middle of a frame.
 	*/
 	dsi_set_bits(0, shutdownz);
-	rk_mipi_dsi_enable_video_mode(1);
+	rk_mipi_dsi_enable_video_mode(NULL, 1);
 #ifdef CONFIG_MFD_RK616
 	rk616_display_router_cfg(dsi_rk616, g_rk29fd_screen, 0);
 #endif
@@ -885,7 +889,7 @@ int rk_mipi_dsi_init_lite(void)
 	if(!screen)
 		return -1;
 	
-	if(rk_mipi_dsi_is_active() == 0)
+	if(rk_mipi_dsi_is_active(NULL) == 0)
 		return -1;
 #if defined(CONFIG_MFD_RK616)
 	ref_clk = clk_get_rate(dsi_rk616->mclk);
@@ -944,14 +948,20 @@ int rk_mipi_dsi_init_lite(void)
 	//rk_mipi_dsi_host_power_up();
 	//rk_mipi_dsi_host_init(screen, 0);
 	//dsi_set_bits(0, shutdownz);
-	rk_mipi_dsi_enable_hs_clk(1);
-	rk_mipi_dsi_enable_video_mode(1);
-	dsi_set_bits(1, shutdownz);
+	rk_mipi_dsi_enable_hs_clk(NULL, 1);
+	rk_mipi_dsi_enable_video_mode(NULL, 1);
+	rk_mipi_dsi_is_enable(NULL, 1);
 	return 0;
 }
 
+static int rk_mipi_dsi_is_enable(void *arg, u32 enable)
+{
+	dsi_set_bits(enable, shutdownz);
 
-static int rk_mipi_dsi_enable_video_mode(u32 enable)
+	return 0;
+}
+
+static int rk_mipi_dsi_enable_video_mode(void *dsi, u32 enable)
 {
 #ifdef DWC_DSI_VERSION_0x3131302A
 	dsi_set_bits(enable, en_video_mode);
@@ -962,7 +972,7 @@ static int rk_mipi_dsi_enable_video_mode(u32 enable)
 }
 
 
-static int rk_mipi_dsi_enable_command_mode(u32 enable)
+static int rk_mipi_dsi_enable_command_mode(void *dsi, u32 enable)
 {
 #ifdef DWC_DSI_VERSION_0x3131302A
 	dsi_set_bits(enable, en_cmd_mode);
@@ -972,13 +982,13 @@ static int rk_mipi_dsi_enable_command_mode(u32 enable)
 	return 0;
 }
 
-static int rk_mipi_dsi_enable_hs_clk(u32 enable)
+static int rk_mipi_dsi_enable_hs_clk(void *dsi, u32 enable)
 {
 	dsi_set_bits(enable, phy_txrequestclkhs);
 	return 0;
 }
 
-static int rk_mipi_dsi_is_active(void) 
+static int rk_mipi_dsi_is_active(void *dsi) 
 {
 	return dsi_get_bits(shutdownz);
 }
@@ -1000,11 +1010,11 @@ static int rk_mipi_dsi_send_packet(u32 type, unsigned char regs[], u32 n)
 
 #ifdef DWC_DSI_VERSION_0x3131302A
 	if(dsi_get_bits(en_video_mode) == 1) {
-		rk_mipi_dsi_enable_video_mode(0);
+		rk_mipi_dsi_enable_video_mode(NULL, 0);
 		flag = 1;
 	}
 #endif
-	rk_mipi_dsi_enable_command_mode(1);
+	rk_mipi_dsi_enable_command_mode(NULL, 1);
 	udelay(10);
 	
 	if(n <= 2) {
@@ -1048,15 +1058,15 @@ static int rk_mipi_dsi_send_packet(u32 type, unsigned char regs[], u32 n)
 #endif
 
 #ifdef DWC_DSI_VERSION_0x3131302A
-	rk_mipi_dsi_enable_command_mode(0);
+	rk_mipi_dsi_enable_command_mode(NULL, 0);
 	if(flag == 1) {
-		rk_mipi_dsi_enable_video_mode(1);
+		rk_mipi_dsi_enable_video_mode(NULL, 1);
 	}
 #endif
 	return 0;
 }
 
-static int rk_mipi_dsi_send_dcs_packet(unsigned char regs[], u32 n)
+static int rk_mipi_dsi_send_dcs_packet(void *dsi, unsigned char regs[], u32 n)
 {
 	n -= 1;
 	if(n <= 2) {
@@ -1073,7 +1083,7 @@ static int rk_mipi_dsi_send_dcs_packet(unsigned char regs[], u32 n)
 	return 0;
 }
 
-static int rk_mipi_dsi_send_gen_packet(void *data, u32 n)
+static int rk_mipi_dsi_send_gen_packet(void *dsi, unsigned char *data, u32 n)
 {
 	unsigned char *regs = data;
 	n -= 1;
@@ -1093,27 +1103,27 @@ static int rk_mipi_dsi_send_gen_packet(void *data, u32 n)
 	return 0;
 }
 
-static int rk_mipi_dsi_read_dcs_packet(unsigned char *data, u32 n)
+static int rk_mipi_dsi_read_dcs_packet(void *dsi, unsigned char *data, u32 n)
 {
 	//DCS READ 
 	return 0;
 }
 
-static int rk_mipi_dsi_power_up(void)
+static int rk_mipi_dsi_power_up(void *dsi)
 {
 	rk_mipi_dsi_phy_power_up();
 	rk_mipi_dsi_host_power_up();
 	return 0;
 }
 
-static int rk_mipi_dsi_power_down(void)
+static int rk_mipi_dsi_power_down(void *dsi)
 {
 	rk_mipi_dsi_host_power_down();
 	rk_mipi_dsi_phy_power_down();
 	return 0;
 }
 
-static int rk_mipi_dsi_get_id(void)
+static int rk_mipi_dsi_get_id(void *dsi)
 {
 	u32 id = 0;
 	id = dsi_get_bits(VERSION);
@@ -1141,8 +1151,8 @@ static int rk_mipi_dsi_probe(void *array, int n)
 {
 	int ret = 0;
 	struct mipi_dsi_screen *screen = array;
-	register_dsi_ops(&rk_mipi_dsi_ops);
-	ret = dsi_probe_current_chip();
+	register_dsi_ops(0, &rk_mipi_dsi_ops);
+	ret = dsi_probe_current_chip(0);
 	if(ret) {
 		MIPI_TRACE("mipi dsi probe fail\n");
 		return -ENODEV;
@@ -1244,9 +1254,9 @@ int reg_proc_write(struct file *file, const char __user *buff, size_t count, lof
 				while(i--) {
 					msleep(10);
 					if(command == 'd')
-						rk_mipi_dsi_send_dcs_packet(str, read_val);
+						rk_mipi_dsi_send_dcs_packet(NULL, str, read_val);
 					else
-						rk_mipi_dsi_send_gen_packet(str, read_val);
+						rk_mipi_dsi_send_gen_packet(NULL, str, read_val);
 				}	
 				i = 1;
 				while(i--) {
@@ -1435,20 +1445,19 @@ int rk616_mipi_dsi_ft_init(void)
 
 #ifdef CONFIG_MIPI_DSI_LINUX
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
 void  rk616_mipi_dsi_suspend(void)
 {
 	u8 dcs[4] = {0};
 	
 	if(!g_screen->standby) {
-		rk_mipi_dsi_enable_video_mode(0);
+		rk_mipi_dsi_enable_video_mode(NULL, 0);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_set_display_off__; 
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_enter_sleep_mode__; 
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 	} else {
 		g_screen->standby(1);
@@ -1481,21 +1490,21 @@ void rk616_mipi_dsi_resume(void)
 #endif
 
 	if(!g_screen->standby) {
-		rk_mipi_dsi_enable_hs_clk(1);
+		rk_mipi_dsi_enable_hs_clk(NULL, 1);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_exit_sleep_mode__;
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_set_display_on__;
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		//msleep(10);
 	} else {
 		g_screen->standby(0);
 	}
 	
 	dsi_set_bits(0, shutdownz);
-	rk_mipi_dsi_enable_video_mode(1);
+	rk_mipi_dsi_enable_video_mode(NULL, 1);
 #ifdef CONFIG_MFD_RK616	
 	dsi_rk616->resume = 1;
 	rk616_display_router_cfg(dsi_rk616, g_rk29fd_screen, 0);
@@ -1518,7 +1527,6 @@ static void rk616_mipi_dsi_late_resume(struct early_suspend *h)
     rk616_mipi_dsi_resume();
 }
 #endif  /* end of CONFIG_HAS_EARLYSUSPEND */
-#endif
 
 static int rk616_mipi_dsi_notifier_event(struct notifier_block *this,
 		unsigned long event, void *ptr) {
@@ -1562,7 +1570,7 @@ static irqreturn_t rk616_mipi_dsi_irq_handler(int irq, void *data)
 static int rk616_mipi_dsi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	rk_screen *screen;
+	struct rk_screen *screen;
 #if defined(CONFIG_ARCH_RK319X)
 	struct resource *res_host, *res_phy, *res_irq;
 #endif
@@ -1666,11 +1674,12 @@ static int rk616_mipi_dsi_probe(struct platform_device *pdev)
 
 #endif  /* CONFIG_MFD_RK616 */
 
-	screen = rk_fb_get_prmry_screen();
+	screen = devm_kzalloc(&pdev->dev, sizeof(struct rk_screen), GFP_KERNEL);
 	if(!screen) {
-		dev_err(&pdev->dev,"the fb prmry screen is null!\n");
+		dev_err(&pdev->dev,"request struct rk_screen fail!\n");
 		goto probe_err9;
 	}
+	rk_fb_get_prmry_screen(screen);
 
 #ifdef CONFIG_MFD_RK616
 	g_rk29fd_screen = screen;
@@ -1685,15 +1694,15 @@ static int rk616_mipi_dsi_probe(struct platform_device *pdev)
 	g_screen->face = screen->face;
 	g_screen->lcdc_id = screen->lcdc_id;
 	g_screen->screen_id = screen->screen_id;
-	g_screen->pixclock = screen->pixclock;
-	g_screen->left_margin = screen->left_margin;
-	g_screen->right_margin = screen->right_margin;
-	g_screen->hsync_len = screen->hsync_len;
-	g_screen->upper_margin = screen->upper_margin;
-	g_screen->lower_margin = screen->lower_margin;
-	g_screen->vsync_len = screen->vsync_len;
-	g_screen->x_res = screen->x_res;
-	g_screen->y_res = screen->y_res;
+	g_screen->pixclock = screen->mode.pixclock;
+	g_screen->left_margin = screen->mode.left_margin;
+	g_screen->right_margin = screen->mode.right_margin;
+	g_screen->hsync_len = screen->mode.hsync_len;
+	g_screen->upper_margin = screen->mode.upper_margin;
+	g_screen->lower_margin = screen->mode.lower_margin;
+	g_screen->vsync_len = screen->mode.vsync_len;
+	g_screen->x_res = screen->mode.xres;
+	g_screen->y_res = screen->mode.yres;
 	g_screen->pin_hsync = screen->pin_hsync;
 	g_screen->pin_vsync = screen->pin_vsync;
 	g_screen->pin_den = screen->pin_den;
@@ -1784,14 +1793,14 @@ static void rk616_mipi_dsi_shutdown(struct platform_device *pdev)
 	u8 dcs[4] = {0};
 	
 	if(!g_screen->standby) {
-		rk_mipi_dsi_enable_video_mode(0);
+		rk_mipi_dsi_enable_video_mode(NULL, 0);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_set_display_off__; 
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 		dcs[0] = HSDT;
 		dcs[1] = dcs_enter_sleep_mode__; 
-		rk_mipi_dsi_send_dcs_packet(dcs, 2);
+		rk_mipi_dsi_send_dcs_packet(NULL, dcs, 2);
 		msleep(1);
 	} else {
 		g_screen->standby(1);
