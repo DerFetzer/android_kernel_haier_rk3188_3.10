@@ -8,6 +8,8 @@
 #include <linux/err.h>
 #include <linux/uaccess.h>
 #include <linux/interrupt.h>
+#include <linux/gpio.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
 #if defined(CONFIG_DEBUG_FS)
@@ -475,6 +477,59 @@ static int rk616_core_resume(struct device* dev)
 	return 0;
 }
 
+static int rk616_power_init(struct mfd_rk616 *rk616)
+{
+	struct rk616_platform_data *pdata = rk616->pdata;
+
+	int ret = 0;
+
+	if (gpio_is_valid(pdata->pwren_gpio))
+	{
+		ret = gpio_request(pdata->pwren_gpio, "rk616 pwren");
+		if (ret)
+		{
+			printk("failed to request pwren_gpio!");
+			return -1;
+		}
+		else
+		{
+			gpio_direction_output(pdata->pwren_gpio, pdata->pwren_gpio_enable);			
+		}
+	}
+
+	if (gpio_is_valid(pdata->rst_gpio))
+	{
+		ret = gpio_request(pdata->rst_gpio, "rk616 reset");
+		if (ret)
+		{
+			printk("failed to request rst_gpio!");
+			return -1;
+		}
+		else
+		{
+			gpio_direction_output(pdata->rst_gpio, !pdata->rst_gpio_enable);
+			msleep(2);
+			gpio_direction_output(pdata->rst_gpio, pdata->rst_gpio_enable);
+			msleep(10);
+			gpio_direction_output(pdata->rst_gpio, !pdata->rst_gpio_enable);
+		}
+	}
+
+	return 0;
+}
+
+static int rk616_power_deinit(struct mfd_rk616 *rk616)
+{
+	struct rk616_platform_data *pdata = rk616->pdata;
+
+	gpio_set_value(pdata->pwren_gpio, !pdata->pwren_gpio_enable);
+	gpio_set_value(pdata->rst_gpio, pdata->rst_gpio_enable);
+	gpio_free(pdata->pwren_gpio);
+	gpio_free(pdata->rst_gpio);
+
+	return 0;
+}
+
 /*
 dts:
 
@@ -529,6 +584,8 @@ static struct rk616_platform_data *rk616_parse_dt(struct mfd_rk616 *rk616)
 	struct device_node *rk616_np = rk616->dev->of_node;
 	int val = 0,gpio = 0;
 
+	enum of_gpio_flags flags;
+
 	if (!rk616_np) {
 		printk("could not find rk616 node\n");
 		return NULL;
@@ -556,7 +613,28 @@ static struct rk616_platform_data *rk616_parse_dt(struct mfd_rk616 *rk616)
 	if (!gpio_is_valid(gpio))
 		printk("invalid hdmi_irq_gpio: %d\n",gpio);
 	pdata->hdmi_irq = gpio;
-	//TODO Daisen >>pwr gpio wait to add
+	
+	gpio = of_get_named_gpio_flags(rk616_np,"rk616,pwren_gpio", 0, &flags);
+	if (!gpio_is_valid(gpio))
+	{
+		printk("invalid pwren_gpio: %d\n",gpio);
+	}
+	else
+	{
+		pdata->pwren_gpio = gpio;
+		pdata->pwren_gpio_enable = (flags == GPIO_ACTIVE_HIGH)? 1:0;
+	}
+
+	gpio = of_get_named_gpio_flags(rk616_np,"rk616,rst_gpio", 0, &flags);
+	if (!gpio_is_valid(gpio))
+	{
+		printk("invalid rst_gpio: %d\n",gpio);
+	}
+	else
+	{
+		pdata->rst_gpio = gpio;
+		pdata->rst_gpio_enable = (flags == GPIO_ACTIVE_HIGH)? 1:0;
+	}
 
 	return pdata;
 }
@@ -637,8 +715,14 @@ static int rk616_i2c_probe(struct i2c_client *client,const struct i2c_device_id 
 	mutex_init(&rk616->reg_lock);
 	
 	if(rk616->pdata->power_init)
+	{
 		rk616->pdata->power_init();
-	
+	}
+	else
+	{
+		rk616_power_init(rk616);
+	}
+
 	rk616->read_dev = rk616_i2c_read_reg;
 	rk616->write_dev = rk616_i2c_write_reg;
 	rk616->write_dev_bits = rk616_i2c_write_bits;
@@ -671,7 +755,13 @@ static void rk616_core_shutdown(struct i2c_client *client)
 {
 	struct mfd_rk616 *rk616 = i2c_get_clientdata(client);
 	if(rk616->pdata->power_deinit)
+	{
 		rk616->pdata->power_deinit();
+	}
+	else
+	{
+		rk616_power_deinit(rk616);
+	}
 }
 
 
