@@ -1814,9 +1814,19 @@ static void rk616_mipi_dsi_shutdown(struct platform_device *pdev)
 	return;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id of_rk_mipi_dsi_match[] = {
+	{ .compatible = "rockchip,rk616-dsi" }, 
+	{ /* Sentinel */ } 
+}; 
+#endif
+
 static struct platform_driver rk616_mipi_dsi_driver = {
 	.driver		= {
 		.name	= "rk616-mipi",
+#ifdef CONFIG_OF
+		.of_match_table	= of_rk_mipi_dsi_match,
+#endif
 		.owner	= THIS_MODULE,
 	},
 	.probe		= rk616_mipi_dsi_probe,
